@@ -9,7 +9,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { auth, db } from "../src/lib/firebase";
+import { auth, db } from "../lib/firebase";
+;
 
 export default function Index() {
   const [email, setEmail] = useState("");
