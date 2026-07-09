@@ -265,4 +265,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  errorText: {
+    color: Colors.textFaint,
+    fontSize: 13,
+    marginBottom: 12,
+  },
 });
