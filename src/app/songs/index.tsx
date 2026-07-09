@@ -1,30 +1,15 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Text } from "react-native";
 
-export default function HomeScreen() {
+import { Screen } from "@/components/ui/Screen";
+
+export default function SongsScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>楽曲一覧</Text>
-      <Text style={styles.text}>Tune Market 楽曲一覧画面</Text>
-    </View>
+    <Screen
+      title="楽曲一覧"
+      subtitle="気になる楽曲を探して、詳細を確認しよう。"
+      showBottomNav
+    >
+      <Text style={{ color: "#FFFFFF" }}>楽曲一覧画面</Text>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#061226",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  title: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 12,
-  },
-  text: {
-    color: "#9CA3AF",
-    fontSize: 14,
-  },
-});
