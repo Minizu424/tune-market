@@ -1,5 +1,3 @@
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -15,11 +13,6 @@ import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
-import {
-  buildAudioPath,
-  buildJacketPath,
-  uploadFileToStorage,
-} from "@/lib/storageUpload";
 import { getArtistByUserId } from "@/repositories/artistsRepository";
 import { createSong } from "@/repositories/songsRepository";
 import type { Artist, SongStatus } from "@/types";
@@ -27,6 +20,11 @@ import type { Artist, SongStatus } from "@/types";
 const INITIAL_PRICE = 100;
 const PROGRESS_PRESETS = [0, 25, 50, 75, 100];
 
+/**
+ * 楽曲投稿画面。
+ * MVPでは Firebase Storage を使わず、音源・ジャケット画像は
+ * 外部URLを文字列として Firestore に保存する（URL方式）。
+ */
 export default function NewSongScreen() {
   const { firebaseUser } = useAuthUser();
   const [artist, setArtist] = useState<Artist | null>(null);
@@ -35,10 +33,8 @@ export default function NewSongScreen() {
   const [genre, setGenre] = useState<string>(GENRES[0]);
   const [description, setDescription] = useState("");
   const [progress, setProgress] = useState(0);
-  const [audioAsset, setAudioAsset] =
-    useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [jacketAsset, setJacketAsset] =
-    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [jacketUrl, setJacketUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,30 +44,11 @@ export default function NewSongScreen() {
     getArtistByUserId(firebaseUser.uid).then(setArtist).catch(console.error);
   }, [firebaseUser]);
 
-  const pickAudio = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: "audio/*",
-      copyToCacheDirectory: true,
-    });
-    if (!result.canceled && result.assets?.length) {
-      setAudioAsset(result.assets[0]);
+  const validateUrl = (value: string): boolean => {
+    if (!value.trim()) {
+      return true; // 空はOK（任意項目）
     }
-  };
-
-  const pickJacket = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("エラー", "写真ライブラリへのアクセスを許可してください。");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets?.length) {
-      setJacketAsset(result.assets[0]);
-    }
+    return /^https?:\/\/.+/.test(value.trim());
   };
 
   const handleSubmit = async (status: SongStatus) => {
@@ -83,35 +60,21 @@ export default function NewSongScreen() {
       Alert.alert("エラー", "楽曲タイトルを入力してください。");
       return;
     }
+    if (!validateUrl(audioUrl) || !validateUrl(jacketUrl)) {
+      Alert.alert("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      let audioUrl = "";
-      let jacketUrl = "";
-
-      if (audioAsset) {
-        audioUrl = await uploadFileToStorage(
-          audioAsset.uri,
-          buildAudioPath(artist.id, audioAsset.name ?? "audio.mp3"),
-          audioAsset.mimeType,
-        );
-      }
-      if (jacketAsset) {
-        jacketUrl = await uploadFileToStorage(
-          jacketAsset.uri,
-          buildJacketPath(artist.id, jacketAsset.fileName ?? "jacket.jpg"),
-          jacketAsset.mimeType,
-        );
-      }
-
       await createSong({
         artistId: artist.id,
         artistName: artist.artistName,
         title: title.trim(),
         genre,
         description: description.trim(),
-        audioUrl,
-        jacketUrl,
+        audioUrl: audioUrl.trim(),
+        jacketUrl: jacketUrl.trim(),
         initialPrice: INITIAL_PRICE,
         progress,
         status,
@@ -190,19 +153,30 @@ export default function NewSongScreen() {
         ))}
       </View>
 
-      <Text style={styles.label}>オーディオファイル（任意）</Text>
-      <AppButton
-        title={audioAsset ? `♪ ${audioAsset.name}` : "音源ファイルを選択"}
-        variant="secondary"
-        onPress={pickAudio}
+      <Text style={styles.label}>音源URL（任意）</Text>
+      <TextInput
+        style={styles.input}
+        value={audioUrl}
+        onChangeText={setAudioUrl}
+        placeholder="https://example.com/song.mp3"
+        placeholderTextColor={Colors.textFaint}
+        autoCapitalize="none"
+        keyboardType="url"
       />
 
-      <Text style={styles.label}>ジャケット画像（任意）</Text>
-      <AppButton
-        title={jacketAsset ? "画像を選択済み（タップで変更）" : "ジャケット画像を選択"}
-        variant="secondary"
-        onPress={pickJacket}
+      <Text style={styles.label}>ジャケット画像URL（任意）</Text>
+      <TextInput
+        style={styles.input}
+        value={jacketUrl}
+        onChangeText={setJacketUrl}
+        placeholder="https://example.com/jacket.png"
+        placeholderTextColor={Colors.textFaint}
+        autoCapitalize="none"
+        keyboardType="url"
       />
+      <Text style={styles.hint}>
+        ※MVPではファイルアップロードは行わず、公開されているURLを登録します
+      </Text>
 
       <Text style={styles.label}>初期価格（応援ポイント）</Text>
       <View style={styles.priceBox}>
@@ -290,6 +264,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     paddingVertical: 8,
     alignItems: "center",
+  },
+  hint: {
+    color: Colors.textFaint,
+    fontSize: 11,
+    marginTop: 8,
   },
   priceBox: {
     backgroundColor: Colors.card,

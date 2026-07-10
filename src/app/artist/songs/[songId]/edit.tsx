@@ -29,6 +29,8 @@ export default function EditSongScreen() {
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
   const [description, setDescription] = useState("");
+  const [audioUrl, setAudioUrl] = useState("");
+  const [jacketUrl, setJacketUrl] = useState("");
   const [status, setStatus] = useState<SongStatus>("public");
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,6 +45,8 @@ export default function EditSongScreen() {
           setTitle(songData.title);
           setGenre(songData.genre);
           setDescription(songData.description);
+          setAudioUrl(songData.audioUrl);
+          setJacketUrl(songData.jacketUrl);
           setStatus(songData.status);
         }
         // アーティスト本人以外は編集できない（非機能要件 14.3）
@@ -60,6 +64,14 @@ export default function EditSongScreen() {
       Alert.alert("エラー", "楽曲タイトルを入力してください。");
       return;
     }
+    const urlPattern = /^https?:\/\/.+/;
+    if (
+      (audioUrl.trim() && !urlPattern.test(audioUrl.trim())) ||
+      (jacketUrl.trim() && !urlPattern.test(jacketUrl.trim()))
+    ) {
+      Alert.alert("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -67,6 +79,8 @@ export default function EditSongScreen() {
         title: title.trim(),
         genre,
         description: description.trim(),
+        audioUrl: audioUrl.trim(),
+        jacketUrl: jacketUrl.trim(),
         status,
       });
       Alert.alert("保存完了", "楽曲情報を更新しました。");
@@ -135,6 +149,28 @@ export default function EditSongScreen() {
         multiline
         numberOfLines={4}
         placeholderTextColor={Colors.textFaint}
+      />
+
+      <Text style={styles.label}>音源URL（任意）</Text>
+      <TextInput
+        style={styles.input}
+        value={audioUrl}
+        onChangeText={setAudioUrl}
+        placeholder="https://example.com/song.mp3"
+        placeholderTextColor={Colors.textFaint}
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+
+      <Text style={styles.label}>ジャケット画像URL（任意）</Text>
+      <TextInput
+        style={styles.input}
+        value={jacketUrl}
+        onChangeText={setJacketUrl}
+        placeholder="https://example.com/jacket.png"
+        placeholderTextColor={Colors.textFaint}
+        autoCapitalize="none"
+        keyboardType="url"
       />
 
       <Text style={styles.label}>公開状態</Text>
