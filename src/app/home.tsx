@@ -1,5 +1,6 @@
+import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -34,6 +35,15 @@ export default function HomeScreen() {
   const [viewportHeight, setViewportHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [focused, setFocused] = useState(false);
+
+  const player = useAudioPlayer();
+  const currentAudioUrlRef = useRef<string | null>(null);
+
+  // iOSのサイレントモードでも再生できるようにする
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(console.error);
+  }, []);
 
   const loadSongs = useCallback(async () => {
     try {
@@ -48,8 +58,14 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setFocused(true);
       loadSongs();
       refreshProfile().catch(console.error);
+
+      return () => {
+        // 画面を離れたら再生を止める
+        setFocused(false);
+      };
     }, [loadSongs, refreshProfile]),
   );
 
@@ -71,6 +87,23 @@ export default function HomeScreen() {
   ]);
 
   const activeSong = items[activeIndex]?.song ?? null;
+
+  // 表示中のリールの曲だけを再生し、画面外の曲は停止する
+  useEffect(() => {
+    const audioUrl = focused ? activeSong?.audioUrl || null : null;
+
+    if (!audioUrl) {
+      player.pause();
+      return;
+    }
+
+    if (currentAudioUrlRef.current !== audioUrl) {
+      currentAudioUrlRef.current = audioUrl;
+      player.replace({ uri: audioUrl });
+      player.loop = true;
+    }
+    player.play();
+  }, [player, focused, activeSong?.audioUrl]);
 
   const handleCompleted = useCallback(() => {
     loadSongs();
