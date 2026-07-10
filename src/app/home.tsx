@@ -1,209 +1,210 @@
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { RankingItem } from "@/components/ranking/RankingItem";
-import { SongListItem } from "@/components/songs/SongListItem";
-import { AppCard } from "@/components/ui/AppCard";
-import { Screen } from "@/components/ui/Screen";
-import { Colors } from "@/constants/colors";
-import { GENRES } from "@/constants/genres";
-import { useAuthUser } from "@/hooks/use-auth-user";
-import { formatPoint, formatRate } from "@/lib/format";
-import { calculatePriceChangeRate } from "@/repositories/songsRepository";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  getNewListingRanking,
-  getTrendingRanking,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  View,
+  type ViewToken,
+} from "react-native";
+import { BottomNav } from "@/components/navigation/BottomNav";
+import { ReelCard } from "@/components/reel/ReelCard";
+import { SupportModal } from "@/components/support/SupportModal";
+import { BuyStockModal } from "@/components/trade/BuyStockModal";
+import { Colors } from "@/constants/colors";
+import { useAuthUser } from "@/hooks/use-auth-user";
+import { formatPoint } from "@/lib/format";
+import {
   getWeeklySupportRanking,
   type WeeklyRankingItem,
 } from "@/services/getRankingSongs";
-import type { Song } from "@/types";
 
+type ModalKind = "buy" | "support" | null;
+
+/**
+ * リール型ホーム画面。
+ * 縦スクロール（1画面1曲）で楽曲を切り替える。
+ * 並び順は週間応援ランキング順（ランキング上位曲がホームに出る）。
+ */
 export default function HomeScreen() {
   const { profile, refreshProfile } = useAuthUser();
-  const [trending, setTrending] = useState<Song[]>([]);
-  const [newSongs, setNewSongs] = useState<Song[]>([]);
-  const [weekly, setWeekly] = useState<WeeklyRankingItem[]>([]);
+  const [items, setItems] = useState<WeeklyRankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [modal, setModal] = useState<ModalKind>(null);
+
+  const loadSongs = useCallback(async () => {
+    try {
+      const ranking = await getWeeklySupportRanking(30);
+      setItems(ranking);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-
-      (async () => {
-        try {
-          const [trendingSongs, latest, weeklyRanking] = await Promise.all([
-            getTrendingRanking(3),
-            getNewListingRanking(3),
-            getWeeklySupportRanking(3),
-          ]);
-          if (!active) {
-            return;
-          }
-          setTrending(trendingSongs);
-          setNewSongs(latest);
-          setWeekly(weeklyRanking);
-        } catch (error) {
-          console.error(error);
-        } finally {
-          if (active) {
-            setLoading(false);
-          }
-        }
-      })();
-
+      loadSongs();
       refreshProfile().catch(console.error);
+    }, [loadSongs, refreshProfile]),
+  );
 
-      return () => {
-        active = false;
-      };
-    }, [refreshProfile]),
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const visible = viewableItems.find((token) => token.isViewable);
+      if (visible && typeof visible.index === "number") {
+        setActiveIndex(visible.index);
+      }
+    },
+    [],
+  );
+
+  const viewabilityConfigCallbackPairs = useRef([
+    {
+      viewabilityConfig: { itemVisiblePercentThreshold: 60 },
+      onViewableItemsChanged,
+    },
+  ]);
+
+  const activeSong = items[activeIndex]?.song ?? null;
+
+  const handleCompleted = useCallback(() => {
+    loadSongs();
+    refreshProfile().catch(console.error);
+  }, [loadSongs, refreshProfile]);
+
+  const keyExtractor = useCallback(
+    (item: WeeklyRankingItem) => item.song.id,
+    [],
+  );
+
+  const getItemLayout = useMemo(
+    () =>
+      viewportHeight > 0
+        ? (_: unknown, index: number) => ({
+            length: viewportHeight,
+            offset: viewportHeight * index,
+            index,
+          })
+        : undefined,
+    [viewportHeight],
   );
 
   return (
-    <Screen
-      title="Tune Market"
-      subtitle="将来伸びる楽曲を見つけて、ポイントで応援しよう。"
-      showBottomNav
+    <View
+      style={styles.root}
+      onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
     >
-      <AppCard style={styles.card}>
-        <Text style={styles.cardLabel}>保有ポイント</Text>
-        <Text style={styles.point}>
-          {profile ? `${formatPoint(profile.pointBalance)} pt` : "--- pt"}
-        </Text>
-        <Text style={styles.note}>※ポイント・株は現金化できません</Text>
-      </AppCard>
-
-      {loading ? (
-        <ActivityIndicator color={Colors.accent} style={styles.loading} />
+      {loading || viewportHeight === 0 ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={Colors.accent} />
+        </View>
+      ) : items.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>
+            まだ楽曲がありません。{"\n"}シードスクリプトでテスト楽曲を投入してください。
+          </Text>
+        </View>
       ) : (
-        <>
-          <SectionHeader title="急上昇銘柄" onPressMore={() => router.push("/ranking")} />
-          {trending.map((song, index) => (
-            <RankingItem
-              key={song.id}
-              rank={index + 1}
-              song={song}
-              value={`${formatPoint(song.currentPrice)}pt`}
-              subValue={formatRate(calculatePriceChangeRate(song))}
-              valueColor={
-                calculatePriceChangeRate(song) >= 0 ? Colors.up : Colors.down
-              }
-            />
-          ))}
-
-          <SectionHeader title="新規上場曲" onPressMore={() => router.push("/songs")} />
-          {newSongs.map((song) => (
-            <SongListItem key={song.id} song={song} />
-          ))}
-
-          <SectionHeader
-            title="週間応援ランキング"
-            onPressMore={() => router.push("/ranking")}
-          />
-          {weekly.map((item, index) => (
-            <RankingItem
-              key={item.song.id}
-              rank={index + 1}
+        <FlatList
+          data={items}
+          keyExtractor={keyExtractor}
+          renderItem={({ item, index }) => (
+            <ReelCard
               song={item.song}
-              value={`${formatPoint(
-                item.weeklySupportPoint > 0
-                  ? item.weeklySupportPoint
-                  : item.song.supportPoint,
-              )} 応援pt`}
+              height={viewportHeight}
+              isActive={index === activeIndex}
+              weeklyRank={index + 1}
+              onPressBuy={() => setModal("buy")}
+              onPressSupport={() => setModal("support")}
             />
-          ))}
+          )}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
+          viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
+          initialNumToRender={2}
+          windowSize={3}
+        />
+      )}
 
-          <SectionHeader title="ジャンルから探す" />
-          <View style={styles.genreRow}>
-            {GENRES.slice(0, 4).map((genre) => (
-              <Pressable
-                key={genre}
-                style={styles.genreChip}
-                onPress={() => router.push(`/songs?genre=${encodeURIComponent(genre)}`)}
-              >
-                <Text style={styles.genreText}>{genre}</Text>
-              </Pressable>
-            ))}
-          </View>
+      <View style={styles.header} pointerEvents="none">
+        <Text style={styles.headerTitle}>Tune Market</Text>
+        <Text style={styles.headerPoint}>
+          {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
+        </Text>
+      </View>
+
+      {profile && activeSong && (
+        <>
+          <BuyStockModal
+            visible={modal === "buy"}
+            song={activeSong}
+            userId={profile.id}
+            pointBalance={profile.pointBalance}
+            onClose={() => setModal(null)}
+            onCompleted={handleCompleted}
+          />
+          <SupportModal
+            visible={modal === "support"}
+            song={activeSong}
+            userId={profile.id}
+            pointBalance={profile.pointBalance}
+            onClose={() => setModal(null)}
+            onCompleted={handleCompleted}
+          />
         </>
       )}
-    </Screen>
-  );
-}
 
-function SectionHeader({
-  title,
-  onPressMore,
-}: {
-  title: string;
-  onPressMore?: () => void;
-}) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {onPressMore && (
-        <Pressable onPress={onPressMore}>
-          <Text style={styles.sectionMore}>すべて見る</Text>
-        </Pressable>
-      )}
+      <BottomNav />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 20,
+  root: {
+    flex: 1,
+    backgroundColor: "#000000",
   },
-  cardLabel: {
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  emptyText: {
     color: Colors.textMuted,
     fontSize: 13,
-    marginBottom: 6,
+    textAlign: "center",
+    lineHeight: 20,
   },
-  point: {
-    color: Colors.text,
-    fontSize: 32,
-    fontWeight: "800",
-  },
-  note: {
-    color: Colors.textFaint,
-    fontSize: 11,
-    marginTop: 6,
-  },
-  loading: {
-    marginTop: 32,
-  },
-  sectionHeader: {
+  header: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 56,
+    paddingHorizontal: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 12,
-    marginBottom: 10,
   },
-  sectionTitle: {
-    color: Colors.accentSoft,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  sectionMore: {
-    color: Colors.textMuted,
-    fontSize: 12,
-  },
-  genreRow: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  genreChip: {
-    backgroundColor: Colors.card,
-    borderColor: Colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  genreText: {
+  headerTitle: {
     color: Colors.text,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 6,
+  },
+  headerPoint: {
+    color: Colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 6,
   },
 });
