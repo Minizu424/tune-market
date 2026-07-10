@@ -90,6 +90,8 @@ const artists = [
 const songs = [
   {
     id: "seed-night-drive",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-night-drive/600/600",
     artistId: "seed-taro-beats",
     artistName: "Taro Beats",
     title: "Night Drive",
@@ -108,6 +110,8 @@ const songs = [
   },
   {
     id: "seed-sunset-walk",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-sunset-walk/600/600",
     artistId: "seed-luna",
     artistName: "Luna",
     title: "Sunset Walk",
@@ -126,6 +130,8 @@ const songs = [
   },
   {
     id: "seed-starlight",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-starlight/600/600",
     artistId: "seed-mio",
     artistName: "Mio",
     title: "Starlight",
@@ -144,6 +150,8 @@ const songs = [
   },
   {
     id: "seed-color-loop",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-color-loop/600/600",
     artistId: "seed-azuki",
     artistName: "azuki",
     title: "Color Loop",
@@ -162,6 +170,8 @@ const songs = [
   },
   {
     id: "seed-fading-echo",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-fading-echo/600/600",
     artistId: "seed-kuro",
     artistName: "Kuro",
     title: "Fading Echo",
@@ -180,6 +190,8 @@ const songs = [
   },
   {
     id: "seed-new-dawn",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-new-dawn/600/600",
     artistId: "seed-beatlover",
     artistName: "BeatLover",
     title: "New Dawn",
@@ -198,6 +210,8 @@ const songs = [
   },
   {
     id: "seed-ocean-eyes",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-ocean-eyes/600/600",
     artistId: "seed-riku",
     artistName: "Riku",
     title: "Ocean Eyes",
@@ -216,6 +230,8 @@ const songs = [
   },
   {
     id: "seed-midnight-city",
+    audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+    jacketUrl: "https://picsum.photos/seed/seed-midnight-city/600/600",
     artistId: "seed-neon-owl",
     artistName: "Neon Owl",
     title: "Midnight City",
@@ -276,8 +292,6 @@ async function main() {
     const { id, daysAgo, ...rest } = song;
     await setDoc(doc(db, "songs", id), {
       ...rest,
-      audioUrl: "",
-      jacketUrl: "",
       initialPrice: 100,
       status: "public",
       createdAt: Timestamp.fromDate(new Date(Date.now() - daysAgo * DAY_MS)),
