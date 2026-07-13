@@ -1,13 +1,13 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
@@ -53,15 +53,15 @@ export default function NewSongScreen() {
 
   const handleSubmit = async (status: SongStatus) => {
     if (!artist) {
-      Alert.alert("エラー", "先にアーティスト登録をしてください。");
+      notify("エラー", "先にアーティスト登録をしてください。");
       return;
     }
     if (!title.trim()) {
-      Alert.alert("エラー", "楽曲タイトルを入力してください。");
+      notify("エラー", "楽曲タイトルを入力してください。");
       return;
     }
     if (!validateUrl(audioUrl) || !validateUrl(jacketUrl)) {
-      Alert.alert("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
+      notify("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
       return;
     }
 
@@ -80,7 +80,7 @@ export default function NewSongScreen() {
         status,
       });
 
-      Alert.alert(
+      notify(
         "投稿完了",
         status === "public"
           ? `${title.trim()} を上場しました！初期価格は${INITIAL_PRICE}ptです。`
@@ -89,7 +89,7 @@ export default function NewSongScreen() {
       router.replace("/artist/dashboard");
     } catch (error) {
       console.error(error);
-      Alert.alert("エラー", "投稿に失敗しました。通信環境を確認してください。");
+      notify("エラー", "投稿に失敗しました。通信環境を確認してください。");
     } finally {
       setSubmitting(false);
     }

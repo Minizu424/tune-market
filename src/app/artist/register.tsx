@@ -1,13 +1,13 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
@@ -31,11 +31,11 @@ export default function ArtistRegisterScreen() {
 
   const handleRegister = async () => {
     if (!firebaseUser) {
-      Alert.alert("エラー", "ログインしてください。");
+      notify("エラー", "ログインしてください。");
       return;
     }
     if (!artistName.trim()) {
-      Alert.alert("エラー", "アーティスト名を入力してください。");
+      notify("エラー", "アーティスト名を入力してください。");
       return;
     }
 
@@ -49,10 +49,10 @@ export default function ArtistRegisterScreen() {
         snsLink: snsLink.trim(),
       });
       await refreshProfile();
-      Alert.alert("登録完了", "アーティスト登録が完了しました！");
+      notify("登録完了", "アーティスト登録が完了しました！");
       router.replace("/artist/dashboard");
     } catch (error) {
-      Alert.alert(
+      notify(
         "登録失敗",
         error instanceof Error ? error.message : "登録に失敗しました。",
       );

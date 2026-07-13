@@ -2,13 +2,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
@@ -61,7 +61,7 @@ export default function EditSongScreen() {
       return;
     }
     if (!title.trim()) {
-      Alert.alert("エラー", "楽曲タイトルを入力してください。");
+      notify("エラー", "楽曲タイトルを入力してください。");
       return;
     }
     const urlPattern = /^https?:\/\/.+/;
@@ -69,7 +69,7 @@ export default function EditSongScreen() {
       (audioUrl.trim() && !urlPattern.test(audioUrl.trim())) ||
       (jacketUrl.trim() && !urlPattern.test(jacketUrl.trim()))
     ) {
-      Alert.alert("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
+      notify("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
       return;
     }
 
@@ -83,11 +83,11 @@ export default function EditSongScreen() {
         jacketUrl: jacketUrl.trim(),
         status,
       });
-      Alert.alert("保存完了", "楽曲情報を更新しました。");
+      notify("保存完了", "楽曲情報を更新しました。");
       router.back();
     } catch (error) {
       console.error(error);
-      Alert.alert("エラー", "保存に失敗しました。");
+      notify("エラー", "保存に失敗しました。");
     } finally {
       setSubmitting(false);
     }

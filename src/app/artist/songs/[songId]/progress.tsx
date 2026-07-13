@@ -2,13 +2,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -78,12 +78,12 @@ export default function ProgressUpdateScreen() {
         progress,
         comment: comment.trim(),
       });
-      Alert.alert("更新完了", "制作進捗を更新しました。ファンに成長が伝わります！");
+      notify("更新完了", "制作進捗を更新しました。ファンに成長が伝わります！");
       setComment("");
       await loadData();
     } catch (error) {
       console.error(error);
-      Alert.alert("エラー", "進捗の更新に失敗しました。");
+      notify("エラー", "進捗の更新に失敗しました。");
     } finally {
       setSubmitting(false);
     }
