@@ -153,7 +153,6 @@ export function CommentsSheet({
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          pointerEvents="box-none"
         >
           <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -261,6 +260,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   list: {
+    minHeight: 180,
     flexGrow: 0,
     flexShrink: 1,
   },
