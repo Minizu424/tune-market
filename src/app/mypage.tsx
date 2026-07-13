@@ -2,6 +2,7 @@ import { router, useFocusEffect } from "expo-router";
 import { signOut } from "firebase/auth";
 import { useCallback, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
+import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { Screen } from "@/components/ui/Screen";
@@ -69,10 +70,10 @@ export default function MyPageScreen() {
     setUpdatingPrices(true);
     try {
       const count = await updateSongPrices();
-      Alert.alert("株価更新", `${count}曲の株価を更新しました。`);
+      notify("株価更新", `${count}曲の株価を更新しました。`);
     } catch (error) {
       console.error(error);
-      Alert.alert("エラー", "株価の更新に失敗しました。");
+      notify("エラー", "株価の更新に失敗しました。");
     } finally {
       setUpdatingPrices(false);
     }

@@ -7,13 +7,13 @@ import {
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { notify } from "@/lib/notify";
 import { Colors } from "@/constants/colors";
 import { auth } from "@/lib/firebase";
 import { createUserDocument } from "@/repositories/usersRepository";
@@ -40,11 +40,11 @@ export default function LoginScreen() {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await createUserDocument(result.user.uid, result.user.email ?? email);
-      Alert.alert("登録成功", "初期ポイント100ptを付与しました。");
+      notify("登録成功", "初期ポイント100ptを付与しました。");
       router.replace("/home");
     } catch (error) {
       console.error(error);
-      Alert.alert("登録失敗", "メールアドレスまたはパスワードを確認してください。");
+      notify("登録失敗", "メールアドレスまたはパスワードを確認してください。");
     } finally {
       setSubmitting(false);
     }
@@ -58,7 +58,7 @@ export default function LoginScreen() {
       router.replace("/home");
     } catch (error) {
       console.error(error);
-      Alert.alert("ログイン失敗", "メールアドレスまたはパスワードを確認してください。");
+      notify("ログイン失敗", "メールアドレスまたはパスワードを確認してください。");
     } finally {
       setSubmitting(false);
     }
