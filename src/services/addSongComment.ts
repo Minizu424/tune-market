@@ -18,10 +18,10 @@ const MAX_COMMENT_LENGTH = 300;
 
 /**
  * 楽曲にコメントを投稿する。
- * comments に保存し、songs.commentCount を +1 する。
+ * songs/{songId}/comments に保存し、songs.commentCount を +1 する。
  * コメント数は株価更新（updateSongPrices）で価格に反映される。
  */
-export async function addSongComment(input: AddSongCommentInput): Promise<void> {
+export async function addSongComment(input: AddSongCommentInput): Promise<string> {
   const text = input.text.trim();
 
   if (!text) {
@@ -32,7 +32,7 @@ export async function addSongComment(input: AddSongCommentInput): Promise<void> 
   }
 
   const batch = writeBatch(db);
-  const commentRef = doc(collection(db, "comments"));
+  const commentRef = doc(collection(db, "songs", input.songId, "comments"));
 
   batch.set(commentRef, {
     songId: input.songId,
@@ -47,4 +47,5 @@ export async function addSongComment(input: AddSongCommentInput): Promise<void> 
   });
 
   await batch.commit();
+  return commentRef.id;
 }
