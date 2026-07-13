@@ -149,13 +149,13 @@ export function CommentsSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.sheetWrapper}
-        pointerEvents="box-none"
-      >
-        <View style={styles.sheet}>
+      <View style={styles.root}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          pointerEvents="box-none"
+        >
+          <View style={styles.sheet}>
           <View style={styles.handle} />
           <Text style={styles.title}>
             コメント（{formatPoint(song.commentCount)}）
@@ -218,19 +218,18 @@ export function CommentsSheet({
           ) : (
             <Text style={styles.loginNote}>コメントするにはログインしてください</Text>
           )}
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  root: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  sheetWrapper: {
     justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   sheet: {
     backgroundColor: "#0F172A",
@@ -241,8 +240,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
-    height: 520,
-    maxHeight: "80%",
+    maxHeight: "75%",
   },
   handle: {
     alignSelf: "center",
@@ -260,10 +258,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   loading: {
-    flex: 1,
+    paddingVertical: 40,
   },
   list: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 1,
   },
   listContent: {
     paddingBottom: 8,
