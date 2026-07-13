@@ -3,7 +3,6 @@ import {
   collection,
   getDocs,
   limit,
-  orderBy,
   query,
   serverTimestamp,
   where,
@@ -17,18 +16,22 @@ export async function getProgressUpdates(
   songId: string,
   limitCount = 30,
 ): Promise<ProgressUpdate[]> {
+  // where + orderBy の複合インデックスを避けるため、並び替えはクライアント側で行う
   const updatesQuery = query(
     collection(db, PROGRESS_UPDATES_COLLECTION),
     where("songId", "==", songId),
-    orderBy("createdAt", "desc"),
     limit(limitCount),
   );
   const snapshot = await getDocs(updatesQuery);
 
-  return snapshot.docs.map((updateDoc) => ({
+  const updates = snapshot.docs.map((updateDoc) => ({
     id: updateDoc.id,
     ...updateDoc.data(),
   })) as ProgressUpdate[];
+
+  return updates.sort(
+    (a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0),
+  );
 }
 
 export async function addProgressUpdate(input: {
