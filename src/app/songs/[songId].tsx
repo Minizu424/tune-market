@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -26,6 +26,7 @@ import {
   calculatePriceChangeRate,
   getSongById,
 } from "@/repositories/songsRepository";
+import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
 import type { Holding, Song } from "@/types";
 
 type ModalKind = "buy" | "sell" | "support" | null;
@@ -42,6 +43,19 @@ export default function SongDetailScreen() {
 
   const player = useAudioPlayer(song?.audioUrl ? { uri: song.audioUrl } : null);
   const playerStatus = useAudioPlayerStatus(player);
+
+  // 再生記録（1画面の滞在につき1再生、再生していた秒数を加算）
+  const hasRecordedPlayRef = useRef(false);
+  const listenStartRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // 画面を離れるとき、再生中だった時間を記録する
+      if (listenStartRef.current && songId) {
+        addSongPlaySeconds(songId, (Date.now() - listenStartRef.current) / 1000);
+      }
+    };
+  }, [songId]);
 
   const loadData = useCallback(async () => {
     if (!songId) {
@@ -122,7 +136,19 @@ export default function SongDetailScreen() {
           onPress={() => {
             if (playerStatus.playing) {
               player.pause();
+              if (listenStartRef.current) {
+                addSongPlaySeconds(
+                  song.id,
+                  (Date.now() - listenStartRef.current) / 1000,
+                );
+                listenStartRef.current = null;
+              }
             } else {
+              if (!hasRecordedPlayRef.current) {
+                hasRecordedPlayRef.current = true;
+                registerSongPlay(song.id);
+              }
+              listenStartRef.current = Date.now();
               player.play();
             }
           }}

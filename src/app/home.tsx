@@ -16,6 +16,7 @@ import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint } from "@/lib/format";
+import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
 import {
   getWeeklySupportRanking,
   type WeeklyRankingItem,
@@ -87,6 +88,28 @@ export default function HomeScreen() {
   ]);
 
   const activeSong = items[activeIndex]?.song ?? null;
+  const activeSongId = activeSong?.id ?? null;
+
+  // リールの再生を記録する（株価計算の指標になる）
+  // 2秒以上表示されたら1再生としてカウントし、表示時間を再生秒数として加算する
+  useEffect(() => {
+    if (!focused || !activeSongId) {
+      return;
+    }
+    const songId = activeSongId;
+    const startedAt = Date.now();
+    const playTimer = setTimeout(() => {
+      registerSongPlay(songId);
+    }, 2000);
+
+    return () => {
+      clearTimeout(playTimer);
+      const seconds = (Date.now() - startedAt) / 1000;
+      if (seconds >= 1) {
+        addSongPlaySeconds(songId, seconds);
+      }
+    };
+  }, [focused, activeSongId]);
 
   // 表示中のリールの曲だけを再生し、画面外の曲は停止する
   useEffect(() => {
