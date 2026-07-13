@@ -12,6 +12,8 @@ type ReelCardProps = {
   height: number;
   isActive: boolean;
   weeklyRank?: number;
+  isLiked: boolean;
+  onPressLike: () => void;
   onPressBuy: () => void;
   onPressSupport: () => void;
 };
@@ -25,6 +27,8 @@ export function ReelCard({
   height,
   isActive,
   weeklyRank,
+  isLiked,
+  onPressLike,
   onPressBuy,
   onPressSupport,
 }: ReelCardProps) {
@@ -54,6 +58,13 @@ export function ReelCard({
       )}
 
       <View style={styles.actions}>
+        <Pressable
+          style={[styles.actionButton, isLiked && styles.likedButton]}
+          onPress={onPressLike}
+        >
+          <Text style={styles.actionIcon}>{isLiked ? "❤️" : "🤍"}</Text>
+          <Text style={styles.actionLabel}>{formatPoint(song.likeCount)}</Text>
+        </Pressable>
         <Pressable style={[styles.actionButton, styles.buyButton]} onPress={onPressBuy}>
           <Text style={styles.actionIcon}>📈</Text>
           <Text style={styles.actionLabel}>買う</Text>
@@ -168,6 +179,10 @@ const styles = StyleSheet.create({
   buyButton: {
     backgroundColor: "rgba(139, 92, 246, 0.9)",
     borderColor: Colors.accent,
+  },
+  likedButton: {
+    backgroundColor: "rgba(236, 72, 153, 0.35)",
+    borderColor: "#EC4899",
   },
   supportButton: {
     backgroundColor: "rgba(245, 158, 11, 0.9)",
