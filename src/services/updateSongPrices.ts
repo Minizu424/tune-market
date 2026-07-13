@@ -9,6 +9,8 @@ import type { PricingSnapshot, Song } from "@/types";
  * 前回の株価更新以降に増えた「反応」だけを価格に反映する。
  * - 再生数の増分（リール・詳細画面での再生）
  * - 再生時間の増分（どれだけ長く聴かれたか）
+ * - いいね数の増減（取り消しで下落もする）
+ * - コメント数の増分
  * - 保有者数の増減（購入・売却）
  * - 応援ポイントの増分（影響度は小さめにする）
  *
@@ -19,6 +21,8 @@ import type { PricingSnapshot, Song } from "@/types";
 const WEIGHTS = {
   playCount: 0.5, // 1再生ごと +0.5pt
   playSeconds: 0.05, // 再生1秒ごと +0.05pt
+  likeCount: 1, // いいね1件の増減で ±1pt
+  commentCount: 1.5, // コメント1件ごと +1.5pt
   holderCount: 2, // 保有者1人の増減で ±2pt
   supportPoint: 0.05, // 応援1ptごと +0.05pt（影響度小さめ）
 } as const;
@@ -32,6 +36,8 @@ function currentStats(song: Song): PricingSnapshot {
     supportPoint: song.supportPoint ?? 0,
     holderCount: song.holderCount ?? 0,
     totalPlaySeconds: song.totalPlaySeconds ?? 0,
+    likeCount: song.likeCount ?? 0,
+    commentCount: song.commentCount ?? 0,
   };
 }
 
@@ -44,15 +50,24 @@ export function calculateSongPrice(song: Song): number {
   const deltaSeconds = Math.max(0, stats.totalPlaySeconds - snapshot.totalPlaySeconds);
   const deltaSupport = Math.max(0, stats.supportPoint - snapshot.supportPoint);
   const deltaHolder = stats.holderCount - snapshot.holderCount; // 売却で負にもなる
+  const deltaLike = (stats.likeCount ?? 0) - (snapshot.likeCount ?? 0); // 取り消しで負にもなる
+  const deltaComment = Math.max(0, (stats.commentCount ?? 0) - (snapshot.commentCount ?? 0));
 
   const activityScore =
     deltaPlay * WEIGHTS.playCount +
     deltaSeconds * WEIGHTS.playSeconds +
     deltaSupport * WEIGHTS.supportPoint +
-    deltaHolder * WEIGHTS.holderCount;
+    deltaHolder * WEIGHTS.holderCount +
+    deltaLike * WEIGHTS.likeCount +
+    deltaComment * WEIGHTS.commentCount;
 
   const hasActivity =
-    deltaPlay !== 0 || deltaSeconds !== 0 || deltaSupport !== 0 || deltaHolder !== 0;
+    deltaPlay !== 0 ||
+    deltaSeconds !== 0 ||
+    deltaSupport !== 0 ||
+    deltaHolder !== 0 ||
+    deltaLike !== 0 ||
+    deltaComment !== 0;
 
   const rawPrice = hasActivity
     ? song.currentPrice + activityScore

@@ -8,6 +8,8 @@ export type PricingSnapshot = {
   supportPoint: number;
   holderCount: number;
   totalPlaySeconds: number;
+  likeCount: number;
+  commentCount: number;
 };
 
 export type Song = {

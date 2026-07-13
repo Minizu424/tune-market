@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SongJacket } from "@/components/songs/SongJacket";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
@@ -21,15 +22,17 @@ import { Colors } from "@/constants/colors";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint, formatQuantity, formatRate } from "@/lib/format";
 import { getHolding } from "@/repositories/holdingsRepository";
+import { getLike } from "@/repositories/likesRepository";
 import { getPriceHistories } from "@/repositories/priceHistoriesRepository";
 import {
   calculatePriceChangeRate,
   getSongById,
 } from "@/repositories/songsRepository";
 import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
+import { toggleSongLike } from "@/services/toggleSongLike";
 import type { Holding, Song } from "@/types";
 
-type ModalKind = "buy" | "sell" | "support" | null;
+type ModalKind = "buy" | "sell" | "support" | "comments" | null;
 
 export default function SongDetailScreen() {
   const { songId } = useLocalSearchParams<{ songId: string }>();
@@ -40,6 +43,7 @@ export default function SongDetailScreen() {
   const [prices, setPrices] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [liked, setLiked] = useState(false);
 
   const player = useAudioPlayer(song?.audioUrl ? { uri: song.audioUrl } : null);
   const playerStatus = useAudioPlayerStatus(player);
@@ -70,8 +74,12 @@ export default function SongDetailScreen() {
       setPrices(histories.map((history) => history.price));
 
       if (firebaseUser) {
-        const holdingData = await getHolding(firebaseUser.uid, songId);
+        const [holdingData, likeData] = await Promise.all([
+          getHolding(firebaseUser.uid, songId),
+          getLike(firebaseUser.uid, songId),
+        ]);
         setHolding(holdingData);
+        setLiked(Boolean(likeData));
       }
     } catch (error) {
       console.error(error);
@@ -107,6 +115,26 @@ export default function SongDetailScreen() {
   const holdingQuantity = holding?.quantity ?? 0;
   const canTrade = Boolean(firebaseUser && profile);
 
+  const handleToggleLike = async () => {
+    if (!profile) {
+      return;
+    }
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setSong((prev) =>
+      prev ? { ...prev, likeCount: prev.likeCount + (wasLiked ? -1 : 1) } : prev,
+    );
+    try {
+      await toggleSongLike(profile.id, song.id);
+    } catch (error) {
+      console.error(error);
+      setLiked(wasLiked);
+      setSong((prev) =>
+        prev ? { ...prev, likeCount: prev.likeCount + (wasLiked ? 1 : -1) } : prev,
+      );
+    }
+  };
+
   return (
     <Screen showBottomNav>
       <Pressable onPress={() => router.back()} style={styles.back}>
@@ -127,6 +155,15 @@ export default function SongDetailScreen() {
         <Text style={[styles.change, { color: changeColor }]}>
           {formatRate(changeRate)}（前回比）
         </Text>
+        <Pressable
+          style={[styles.likeButton, liked && styles.likeButtonActive]}
+          onPress={handleToggleLike}
+          disabled={!canTrade}
+        >
+          <Text style={styles.likeButtonText}>
+            {liked ? "❤️" : "🤍"} {formatPoint(song.likeCount)}
+          </Text>
+        </Pressable>
       </View>
 
       {song.audioUrl ? (
@@ -216,9 +253,30 @@ export default function SongDetailScreen() {
         />
       </View>
 
+      <AppCard style={styles.card}>
+        <Text style={styles.cardTitle}>コメント（{formatPoint(song.commentCount)}）</Text>
+        <AppButton
+          title="コメントを見る・書く"
+          variant="secondary"
+          onPress={() => setModal("comments")}
+        />
+      </AppCard>
+
       <Text style={styles.disclaimer}>
         ※楽曲株は実際の金融商品ではありません。ポイントは現金化できず、利益は保証されません。
       </Text>
+
+      <CommentsSheet
+        visible={modal === "comments"}
+        song={song}
+        profile={profile}
+        onClose={() => setModal(null)}
+        onCommentAdded={() =>
+          setSong((prev) =>
+            prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+          )
+        }
+      />
 
       {canTrade && profile && (
         <>
@@ -373,5 +431,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 16,
     lineHeight: 16,
+  },
+  likeButton: {
+    marginLeft: "auto",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.card,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  likeButtonActive: {
+    borderColor: "#EC4899",
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+  },
+  likeButtonText: {
+    color: Colors.text,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

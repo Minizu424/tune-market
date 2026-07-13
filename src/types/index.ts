@@ -1,4 +1,6 @@
 export type { Artist } from "./artist";
+export type { Comment } from "./comment";
+export type { Like } from "./like";
 export type { Holding } from "./holding";
 export type { PriceHistory } from "./priceHistory";
 export type { ProgressUpdate } from "./progressUpdate";

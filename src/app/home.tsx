@@ -11,18 +11,21 @@ import {
 } from "react-native";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { ReelCard } from "@/components/reel/ReelCard";
+import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint } from "@/lib/format";
+import { getLikedSongIds } from "@/repositories/likesRepository";
 import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
+import { toggleSongLike } from "@/services/toggleSongLike";
 import {
   getWeeklySupportRanking,
   type WeeklyRankingItem,
 } from "@/services/getRankingSongs";
 
-type ModalKind = "buy" | "support" | null;
+type ModalKind = "buy" | "support" | "comments" | null;
 
 /**
  * リール型ホーム画面。
@@ -37,6 +40,7 @@ export default function HomeScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [focused, setFocused] = useState(false);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
   const player = useAudioPlayer();
   const currentAudioUrlRef = useRef<string | null>(null);
@@ -68,6 +72,77 @@ export default function HomeScreen() {
         setFocused(false);
       };
     }, [loadSongs, refreshProfile]),
+  );
+
+  // いいね済み楽曲の読み込み
+  useEffect(() => {
+    if (!profile) {
+      return;
+    }
+    getLikedSongIds(profile.id).then(setLikedIds).catch(console.error);
+  }, [profile?.id]);
+
+  // いいねトグル（楽観的更新）
+  const handleToggleLike = useCallback(
+    async (songId: string) => {
+      if (!profile) {
+        return;
+      }
+      const wasLiked = likedIds.has(songId);
+
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) {
+          next.delete(songId);
+        } else {
+          next.add(songId);
+        }
+        return next;
+      });
+      setItems((prev) =>
+        prev.map((item) =>
+          item.song.id === songId
+            ? {
+                ...item,
+                song: {
+                  ...item.song,
+                  likeCount: item.song.likeCount + (wasLiked ? -1 : 1),
+                },
+              }
+            : item,
+        ),
+      );
+
+      try {
+        await toggleSongLike(profile.id, songId);
+      } catch (error) {
+        console.error(error);
+        // 失敗したら元に戻す
+        setLikedIds((prev) => {
+          const next = new Set(prev);
+          if (wasLiked) {
+            next.add(songId);
+          } else {
+            next.delete(songId);
+          }
+          return next;
+        });
+        setItems((prev) =>
+          prev.map((item) =>
+            item.song.id === songId
+              ? {
+                  ...item,
+                  song: {
+                    ...item.song,
+                    likeCount: item.song.likeCount + (wasLiked ? 1 : -1),
+                  },
+                }
+              : item,
+          ),
+        );
+      }
+    },
+    [profile, likedIds],
   );
 
   const onViewableItemsChanged = useCallback(
@@ -175,6 +250,9 @@ export default function HomeScreen() {
               height={viewportHeight}
               isActive={index === activeIndex}
               weeklyRank={index + 1}
+              isLiked={likedIds.has(item.song.id)}
+              onPressLike={() => handleToggleLike(item.song.id)}
+              onPressComments={() => setModal("comments")}
               onPressBuy={() => setModal("buy")}
               onPressSupport={() => setModal("support")}
             />
@@ -194,6 +272,30 @@ export default function HomeScreen() {
           {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
         </Text>
       </View>
+
+      {activeSong && (
+        <CommentsSheet
+          visible={modal === "comments"}
+          song={activeSong}
+          profile={profile}
+          onClose={() => setModal(null)}
+          onCommentAdded={() =>
+            setItems((prev) =>
+              prev.map((item) =>
+                item.song.id === activeSong.id
+                  ? {
+                      ...item,
+                      song: {
+                        ...item.song,
+                        commentCount: item.song.commentCount + 1,
+                      },
+                    }
+                  : item,
+              ),
+            )
+          }
+        />
+      )}
 
       {profile && activeSong && (
         <>
