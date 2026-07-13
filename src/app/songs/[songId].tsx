@@ -6,9 +6,9 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SongJacket } from "@/components/songs/SongJacket";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
@@ -21,7 +21,6 @@ import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint, formatQuantity, formatRate } from "@/lib/format";
-import { getSongComments } from "@/repositories/commentsRepository";
 import { getHolding } from "@/repositories/holdingsRepository";
 import { getLike } from "@/repositories/likesRepository";
 import { getPriceHistories } from "@/repositories/priceHistoriesRepository";
@@ -29,12 +28,11 @@ import {
   calculatePriceChangeRate,
   getSongById,
 } from "@/repositories/songsRepository";
-import { addSongComment } from "@/services/addSongComment";
 import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
 import { toggleSongLike } from "@/services/toggleSongLike";
-import type { Comment, Holding, Song } from "@/types";
+import type { Holding, Song } from "@/types";
 
-type ModalKind = "buy" | "sell" | "support" | null;
+type ModalKind = "buy" | "sell" | "support" | "comments" | null;
 
 export default function SongDetailScreen() {
   const { songId } = useLocalSearchParams<{ songId: string }>();
@@ -46,10 +44,6 @@ export default function SongDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalKind>(null);
   const [liked, setLiked] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentText, setCommentText] = useState("");
-  const [postingComment, setPostingComment] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
 
   const player = useAudioPlayer(song?.audioUrl ? { uri: song.audioUrl } : null);
   const playerStatus = useAudioPlayerStatus(player);
@@ -72,14 +66,12 @@ export default function SongDetailScreen() {
       return;
     }
     try {
-      const [songData, histories, songComments] = await Promise.all([
+      const [songData, histories] = await Promise.all([
         getSongById(songId),
         getPriceHistories(songId),
-        getSongComments(songId),
       ]);
       setSong(songData);
       setPrices(histories.map((history) => history.price));
-      setComments(songComments);
 
       if (firebaseUser) {
         const [holdingData, likeData] = await Promise.all([
@@ -140,37 +132,6 @@ export default function SongDetailScreen() {
       setSong((prev) =>
         prev ? { ...prev, likeCount: prev.likeCount + (wasLiked ? 1 : -1) } : prev,
       );
-    }
-  };
-
-  const handlePostComment = async () => {
-    if (!profile) {
-      return;
-    }
-    setPostingComment(true);
-    setCommentError(null);
-    try {
-      await addSongComment({
-        songId: song.id,
-        userId: profile.id,
-        userName: profile.displayName || profile.email.split("@")[0],
-        text: commentText,
-      });
-      setCommentText("");
-      const [songComments, songData] = await Promise.all([
-        getSongComments(song.id),
-        getSongById(song.id),
-      ]);
-      setComments(songComments);
-      if (songData) {
-        setSong(songData);
-      }
-    } catch (error) {
-      setCommentError(
-        error instanceof Error ? error.message : "コメントの投稿に失敗しました。",
-      );
-    } finally {
-      setPostingComment(false);
     }
   };
 
@@ -294,53 +255,28 @@ export default function SongDetailScreen() {
 
       <AppCard style={styles.card}>
         <Text style={styles.cardTitle}>コメント（{formatPoint(song.commentCount)}）</Text>
-
-        {canTrade ? (
-          <View style={styles.commentForm}>
-            <TextInput
-              style={styles.commentInput}
-              value={commentText}
-              onChangeText={setCommentText}
-              placeholder="この楽曲への感想や応援メッセージを書こう"
-              placeholderTextColor={Colors.textFaint}
-              multiline
-              maxLength={300}
-            />
-            {commentError && <Text style={styles.commentError}>{commentError}</Text>}
-            <AppButton
-              title={postingComment ? "投稿中..." : "コメントする"}
-              onPress={handlePostComment}
-              disabled={postingComment || !commentText.trim()}
-            />
-          </View>
-        ) : (
-          <Text style={styles.commentEmpty}>コメントするにはログインしてください。</Text>
-        )}
-
-        {comments.length === 0 ? (
-          <Text style={styles.commentEmpty}>
-            まだコメントはありません。最初のコメントを書いてみよう！
-          </Text>
-        ) : (
-          comments.map((comment) => (
-            <View key={comment.id} style={styles.commentItem}>
-              <View style={styles.commentHeader}>
-                <Text style={styles.commentAuthor}>{comment.userName}</Text>
-                <Text style={styles.commentDate}>
-                  {comment.createdAt
-                    ? comment.createdAt.toDate().toLocaleDateString("ja-JP")
-                    : ""}
-                </Text>
-              </View>
-              <Text style={styles.commentText}>{comment.text}</Text>
-            </View>
-          ))
-        )}
+        <AppButton
+          title="コメントを見る・書く"
+          variant="secondary"
+          onPress={() => setModal("comments")}
+        />
       </AppCard>
 
       <Text style={styles.disclaimer}>
         ※楽曲株は実際の金融商品ではありません。ポイントは現金化できず、利益は保証されません。
       </Text>
+
+      <CommentsSheet
+        visible={modal === "comments"}
+        song={song}
+        profile={profile}
+        onClose={() => setModal(null)}
+        onCommentAdded={() =>
+          setSong((prev) =>
+            prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev,
+          )
+        }
+      />
 
       {canTrade && profile && (
         <>
@@ -513,52 +449,5 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontSize: 13,
     fontWeight: "700",
-  },
-  commentForm: {
-    marginBottom: 14,
-    gap: 8,
-  },
-  commentInput: {
-    backgroundColor: Colors.input,
-    color: Colors.text,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 13,
-    minHeight: 60,
-    textAlignVertical: "top",
-  },
-  commentError: {
-    color: Colors.down,
-    fontSize: 12,
-  },
-  commentEmpty: {
-    color: Colors.textFaint,
-    fontSize: 12,
-    paddingVertical: 8,
-  },
-  commentItem: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-    paddingVertical: 10,
-  },
-  commentHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  commentAuthor: {
-    color: Colors.accentSoft,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  commentDate: {
-    color: Colors.textFaint,
-    fontSize: 11,
-  },
-  commentText: {
-    color: Colors.text,
-    fontSize: 13,
-    lineHeight: 19,
   },
 });
