@@ -14,6 +14,7 @@ type ReelCardProps = {
   weeklyRank?: number;
   isLiked: boolean;
   onPressLike: () => void;
+  onPressComments: () => void;
   onPressBuy: () => void;
   onPressSupport: () => void;
 };
@@ -29,6 +30,7 @@ export function ReelCard({
   weeklyRank,
   isLiked,
   onPressLike,
+  onPressComments,
   onPressBuy,
   onPressSupport,
 }: ReelCardProps) {
@@ -64,6 +66,10 @@ export function ReelCard({
         >
           <Text style={styles.actionIcon}>{isLiked ? "❤️" : "🤍"}</Text>
           <Text style={styles.actionLabel}>{formatPoint(song.likeCount)}</Text>
+        </Pressable>
+        <Pressable style={styles.actionButton} onPress={onPressComments}>
+          <Text style={styles.actionIcon}>💬</Text>
+          <Text style={styles.actionLabel}>{formatPoint(song.commentCount)}</Text>
         </Pressable>
         <Pressable style={[styles.actionButton, styles.buyButton]} onPress={onPressBuy}>
           <Text style={styles.actionIcon}>📈</Text>

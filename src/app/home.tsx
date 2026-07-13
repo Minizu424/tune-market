@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { ReelCard } from "@/components/reel/ReelCard";
+import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
@@ -24,7 +25,7 @@ import {
   type WeeklyRankingItem,
 } from "@/services/getRankingSongs";
 
-type ModalKind = "buy" | "support" | null;
+type ModalKind = "buy" | "support" | "comments" | null;
 
 /**
  * リール型ホーム画面。
@@ -251,6 +252,7 @@ export default function HomeScreen() {
               weeklyRank={index + 1}
               isLiked={likedIds.has(item.song.id)}
               onPressLike={() => handleToggleLike(item.song.id)}
+              onPressComments={() => setModal("comments")}
               onPressBuy={() => setModal("buy")}
               onPressSupport={() => setModal("support")}
             />
@@ -270,6 +272,30 @@ export default function HomeScreen() {
           {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
         </Text>
       </View>
+
+      {activeSong && (
+        <CommentsSheet
+          visible={modal === "comments"}
+          song={activeSong}
+          profile={profile}
+          onClose={() => setModal(null)}
+          onCommentAdded={() =>
+            setItems((prev) =>
+              prev.map((item) =>
+                item.song.id === activeSong.id
+                  ? {
+                      ...item,
+                      song: {
+                        ...item.song,
+                        commentCount: item.song.commentCount + 1,
+                      },
+                    }
+                  : item,
+              ),
+            )
+          }
+        />
+      )}
 
       {profile && activeSong && (
         <>
