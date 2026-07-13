@@ -36,12 +36,20 @@ export default function NewSongScreen() {
   const [audioUrl, setAudioUrl] = useState("");
   const [jacketUrl, setJacketUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [artistLoading, setArtistLoading] = useState(true);
 
   useEffect(() => {
     if (!firebaseUser) {
       return;
     }
-    getArtistByUserId(firebaseUser.uid).then(setArtist).catch(console.error);
+    getArtistByUserId(firebaseUser.uid)
+      .then(setArtist)
+      .catch((error) => {
+        console.error(error);
+        setErrorText("アーティスト情報の取得に失敗しました。通信環境を確認してください。");
+      })
+      .finally(() => setArtistLoading(false));
   }, [firebaseUser]);
 
   const validateUrl = (value: string): boolean => {
@@ -52,16 +60,18 @@ export default function NewSongScreen() {
   };
 
   const handleSubmit = async (status: SongStatus) => {
+    setErrorText(null);
+
     if (!artist) {
-      notify("エラー", "先にアーティスト登録をしてください。");
+      setErrorText("先にアーティスト登録をしてください。");
       return;
     }
     if (!title.trim()) {
-      notify("エラー", "楽曲タイトルを入力してください。");
+      setErrorText("楽曲タイトルを入力してください。");
       return;
     }
     if (!validateUrl(audioUrl) || !validateUrl(jacketUrl)) {
-      notify("エラー", "URLは http:// または https:// で始まる形式で入力してください。");
+      setErrorText("URLは http:// または https:// で始まる形式で入力してください。");
       return;
     }
 
@@ -89,7 +99,8 @@ export default function NewSongScreen() {
       router.replace("/artist/dashboard");
     } catch (error) {
       console.error(error);
-      notify("エラー", "投稿に失敗しました。通信環境を確認してください。");
+      const detail = error instanceof Error ? error.message : String(error);
+      setErrorText(`投稿に失敗しました：${detail}`);
     } finally {
       setSubmitting(false);
     }
@@ -100,6 +111,18 @@ export default function NewSongScreen() {
       <Pressable onPress={() => router.back()} style={styles.back}>
         <Text style={styles.backText}>← 戻る</Text>
       </Pressable>
+
+      {!artistLoading && !artist && (
+        <View style={styles.warnBanner}>
+          <Text style={styles.warnBannerText}>
+            楽曲を投稿するには、先にアーティスト登録が必要です。
+          </Text>
+          <AppButton
+            title="アーティスト登録へ"
+            onPress={() => router.push("/artist/register")}
+          />
+        </View>
+      )}
 
       <Text style={styles.label}>楽曲タイトル</Text>
       <TextInput
@@ -183,17 +206,23 @@ export default function NewSongScreen() {
         <Text style={styles.priceText}>{INITIAL_PRICE} pt（固定）</Text>
       </View>
 
+      {errorText && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{errorText}</Text>
+        </View>
+      )}
+
       <AppButton
         title={submitting ? "投稿中..." : "投稿する"}
         onPress={() => handleSubmit("public")}
-        disabled={submitting}
+        disabled={submitting || artistLoading || !artist}
         style={styles.submit}
       />
       <AppButton
         title="下書きとして保存"
         variant="ghost"
         onPress={() => handleSubmit("draft")}
-        disabled={submitting}
+        disabled={submitting || artistLoading || !artist}
       />
       <Text style={styles.note}>投稿後はダッシュボードで管理できます</Text>
     </Screen>
@@ -283,8 +312,35 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  warnBanner: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    marginBottom: 8,
+  },
+  warnBannerText: {
+    color: "#FCD34D",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  errorBanner: {
+    backgroundColor: "rgba(248, 113, 113, 0.12)",
+    borderColor: Colors.down,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+  },
+  errorBannerText: {
+    color: Colors.down,
+    fontSize: 13,
+    lineHeight: 19,
+  },
   submit: {
-    marginTop: 24,
+    marginTop: 16,
     marginBottom: 4,
   },
   note: {
