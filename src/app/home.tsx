@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -44,6 +45,8 @@ export default function HomeScreen() {
 
   const player = useAudioPlayer();
   const currentAudioUrlRef = useRef<string | null>(null);
+  const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
+  const lastWheelAtRef = useRef(0);
 
   // iOSのサイレントモードでも再生できるようにする
   useEffect(() => {
@@ -165,6 +168,32 @@ export default function HomeScreen() {
   const activeSong = items[activeIndex]?.song ?? null;
   const activeSongId = activeSong?.id ?? null;
 
+  // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
+  const handleWheel = useCallback(
+    (event: { deltaY: number }) => {
+      const now = Date.now();
+      if (now - lastWheelAtRef.current < 500) {
+        return; // 連続入力は無視（1ジェスチャー1曲）
+      }
+      if (Math.abs(event.deltaY) < 20) {
+        return;
+      }
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.max(
+        0,
+        Math.min(items.length - 1, activeIndex + direction),
+      );
+      if (nextIndex === activeIndex) {
+        return;
+      }
+
+      lastWheelAtRef.current = now;
+      listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    },
+    [items.length, activeIndex],
+  );
+
   // リールの再生を記録する（株価計算の指標になる）
   // 2秒以上表示されたら1再生としてカウントし、表示時間を再生秒数として加算する
   useEffect(() => {
@@ -242,6 +271,7 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={items}
           keyExtractor={keyExtractor}
           renderItem={({ item, index }) => (
@@ -258,11 +288,18 @@ export default function HomeScreen() {
             />
           )}
           pagingEnabled
+          // 勢いのあるスワイプでも次の1曲で必ず止める
+          snapToInterval={viewportHeight}
+          disableIntervalMomentum
+          decelerationRate="fast"
+          // Webは自由スクロールを止めてホイールで1曲ずつ送る
+          scrollEnabled={Platform.OS !== "web"}
           showsVerticalScrollIndicator={false}
           getItemLayout={getItemLayout}
           viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
           initialNumToRender={2}
           windowSize={3}
+          {...(Platform.OS === "web" ? ({ onWheel: handleWheel } as object) : {})}
         />
       )}
 
