@@ -42,6 +42,7 @@ export default function HomeScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
   const playback = usePlayback();
+  const { playQueue } = playback;
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
@@ -231,19 +232,19 @@ export default function HomeScreen() {
     if (startIndex > 0) {
       listRef.current?.scrollToIndex({ index: startIndex, animated: false });
     }
-    playback.playQueue(songs, startIndex);
-  }, [items, viewportHeight, playback]);
+    playQueue(songs, startIndex);
+  }, [items, viewportHeight, playQueue, playback.currentSong?.id]);
 
   // リール操作に合わせて再生する曲を切り替える
   useEffect(() => {
     if (!didInitRef.current || items.length === 0) {
       return;
     }
-    playback.playQueue(
+    playQueue(
       items.map((item) => item.song),
       activeIndex,
     );
-  }, [activeIndex, items, playback]);
+  }, [activeIndex, items, playQueue]);
 
   // 曲が最後まで再生されて自動で次に進んだら、リールも追従してスクロールする
   useEffect(() => {

@@ -95,12 +95,19 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (!target) {
         return;
       }
+      // 内容が同じキューで再セットされても状態更新しない（無限ループ防止）
+      const sameQueue =
+        songs.length === queueRef.current.length &&
+        songs.every((song, i) => song.id === queueRef.current[i]?.id);
+
       const current = queueRef.current[indexRef.current];
       if (current?.id === target.id) {
         // 同じ曲なら再生を止めずにキューだけ差し替える
         queueRef.current = songs;
         indexRef.current = startIndex;
-        setQueue(songs);
+        if (!sameQueue) {
+          setQueue(songs);
+        }
         setCurrentIndex(startIndex);
         return;
       }
