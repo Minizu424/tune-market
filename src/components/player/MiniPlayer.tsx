@@ -6,6 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Image } from "expo-image";
@@ -13,31 +14,67 @@ import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
 const PLAYER_SIZE = 150;
+const SIDE_MARGIN = 16;
+const TOP_MARGIN = 70; // ヘッダー・ステータスバーを避ける
+const BOTTOM_MARGIN = 96; // 下タブナビを避ける
+const DRAG_THRESHOLD = 6;
 
 /**
  * YouTube風のフローティングミニプレイヤー。
- * ジャケットが見える正方形カードで、ドラッグして好きな位置に動かせる。
- * タップで楽曲詳細へ、⏸/▶で再生切り替え、✕で停止。
+ * ドラッグして離すと、YouTubeのPiPのように最寄りの四隅へスナップする。
+ * 画面外に置きっぱなしにはならない（離した瞬間に必ず画面内の角へ戻る）。
  */
 export function MiniPlayer() {
   const pathname = usePathname();
   const { currentSong, isPlaying, toggle, stop } = usePlayback();
+  const { width, height } = useWindowDimensions();
 
-  // ドラッグ位置（画面遷移しても保持される）
+  // ベース位置は右下（styles.wrapper）。そこからの移動量で四隅を表現する。
   const pan = useRef(new Animated.ValueXY()).current;
+  const restRef = useRef({ x: 0, y: 0 }); // 直近でスナップした位置
+  const dimsRef = useRef({ width, height });
+  dimsRef.current = { width, height };
+
   const panResponder = useRef(
     PanResponder.create({
       // 少し動かしたときだけドラッグ扱いにする（タップはボタンに通す）
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        Math.abs(gesture.dx) > 6 || Math.abs(gesture.dy) > 6,
-      onPanResponderGrant: () => {
-        pan.extractOffset();
+        Math.abs(gesture.dx) > DRAG_THRESHOLD ||
+        Math.abs(gesture.dy) > DRAG_THRESHOLD,
+      onPanResponderMove: (_event, gesture) => {
+        pan.setValue({
+          x: restRef.current.x + gesture.dx,
+          y: restRef.current.y + gesture.dy,
+        });
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
+      onPanResponderRelease: (_event, gesture) => {
+        const { width: w, height: h } = dimsRef.current;
+        // 四隅のオフセット（右下が原点 0,0）
+        const leftX = -(w - PLAYER_SIZE - SIDE_MARGIN * 2);
+        const topY = -(h - PLAYER_SIZE - TOP_MARGIN - BOTTOM_MARGIN);
+
+        const x = restRef.current.x + gesture.dx;
+        const y = restRef.current.y + gesture.dy;
+
+        // 最寄りの角を選ぶ（中間点との比較）
+        const targetX = x < leftX / 2 ? leftX : 0;
+        const targetY = y < topY / 2 ? topY : 0;
+
+        restRef.current = { x: targetX, y: targetY };
+        Animated.spring(pan, {
+          toValue: { x: targetX, y: targetY },
+          friction: 7,
+          tension: 60,
+          useNativeDriver: false,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        // ジェスチャーが中断されたら直近のスナップ位置へ戻す
+        Animated.spring(pan, {
+          toValue: restRef.current,
+          friction: 7,
+          useNativeDriver: false,
+        }).start();
       },
     }),
   ).current;
@@ -68,11 +105,7 @@ export function MiniPlayer() {
           </View>
         )}
 
-        <Pressable
-          style={styles.closeButton}
-          onPress={stop}
-          hitSlop={8}
-        >
+        <Pressable style={styles.closeButton} onPress={stop} hitSlop={8}>
           <Text style={styles.closeText}>✕</Text>
         </Pressable>
 
@@ -96,8 +129,8 @@ export function MiniPlayer() {
 const styles = StyleSheet.create({
   wrapper: {
     position: "absolute",
-    right: 16,
-    bottom: 96,
+    right: SIDE_MARGIN,
+    bottom: BOTTOM_MARGIN,
     width: PLAYER_SIZE,
     height: PLAYER_SIZE,
   },
