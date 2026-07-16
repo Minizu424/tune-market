@@ -1,9 +1,8 @@
 import { router, usePathname } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import {
   Animated,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -14,13 +13,11 @@ import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
 const PLAYER_SIZE = 150;
-const DRAG_THRESHOLD = 6;
 
 /**
  * YouTube風のフローティングミニプレイヤー。
  * ジャケットが見える正方形カードで、ドラッグして好きな位置に動かせる。
  * タップで楽曲詳細へ、⏸/▶で再生切り替え、✕で停止。
- * ネイティブはPanResponder、WebはDOMのポインターイベントでドラッグする。
  */
 export function MiniPlayer() {
   const pathname = usePathname();
@@ -28,16 +25,11 @@ export function MiniPlayer() {
 
   // ドラッグ位置（画面遷移しても保持される）
   const pan = useRef(new Animated.ValueXY()).current;
-  const wrapperRef = useRef<View>(null);
-  const offsetRef = useRef({ x: 0, y: 0 });
-  const draggedRef = useRef(false);
-
-  // ネイティブ用ドラッグ
   const panResponder = useRef(
     PanResponder.create({
+      // 少し動かしたときだけドラッグ扱いにする（タップはボタンに通す）
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        Math.abs(gesture.dx) > DRAG_THRESHOLD ||
-        Math.abs(gesture.dy) > DRAG_THRESHOLD,
+        Math.abs(gesture.dx) > 6 || Math.abs(gesture.dy) > 6,
       onPanResponderGrant: () => {
         pan.extractOffset();
       },
@@ -50,89 +42,19 @@ export function MiniPlayer() {
     }),
   ).current;
 
-  const visible = Boolean(currentSong) && pathname !== "/home" && pathname !== "/";
-
-  // Web用ドラッグ（react-native-webはPanResponderをマウスに変換しないため）
-  useEffect(() => {
-    if (Platform.OS !== "web" || !visible) {
-      return;
-    }
-    const node = wrapperRef.current as unknown as HTMLElement | null;
-    if (!node || typeof node.addEventListener !== "function") {
-      return;
-    }
-
-    let dragState: { startX: number; startY: number; baseX: number; baseY: number } | null =
-      null;
-
-    const onPointerDown = (event: PointerEvent) => {
-      dragState = {
-        startX: event.clientX,
-        startY: event.clientY,
-        baseX: offsetRef.current.x,
-        baseY: offsetRef.current.y,
-      };
-      draggedRef.current = false;
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragState) {
-        return;
-      }
-      const dx = event.clientX - dragState.startX;
-      const dy = event.clientY - dragState.startY;
-      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
-        draggedRef.current = true;
-      }
-      if (draggedRef.current) {
-        pan.setValue({ x: dragState.baseX + dx, y: dragState.baseY + dy });
-      }
-    };
-
-    const onPointerUp = (event: PointerEvent) => {
-      if (!dragState) {
-        return;
-      }
-      if (draggedRef.current) {
-        offsetRef.current = {
-          x: dragState.baseX + (event.clientX - dragState.startX),
-          y: dragState.baseY + (event.clientY - dragState.startY),
-        };
-      }
-      dragState = null;
-    };
-
-    node.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      node.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [visible, pan]);
-
-  if (!visible || !currentSong) {
+  // リール画面とログイン画面では表示しない
+  if (!currentSong || pathname === "/home" || pathname === "/") {
     return null;
   }
 
-  // ドラッグ直後のclickをタップとして扱わないためのガード
-  const guardPress = (action: () => void) => () => {
-    if (draggedRef.current) {
-      return;
-    }
-    action();
-  };
-
   return (
     <Animated.View
-      ref={wrapperRef}
       style={[styles.wrapper, { transform: pan.getTranslateTransform() }]}
       {...panResponder.panHandlers}
     >
       <Pressable
         style={styles.card}
-        onPress={guardPress(() => router.push(`/songs/${currentSong.id}`))}
+        onPress={() => router.push(`/songs/${currentSong.id}`)}
       >
         {currentSong.jacketUrl ? (
           <Image
@@ -146,11 +68,15 @@ export function MiniPlayer() {
           </View>
         )}
 
-        <Pressable style={styles.closeButton} onPress={guardPress(stop)} hitSlop={8}>
+        <Pressable
+          style={styles.closeButton}
+          onPress={stop}
+          hitSlop={8}
+        >
           <Text style={styles.closeText}>✕</Text>
         </Pressable>
 
-        <Pressable style={styles.playButton} onPress={guardPress(toggle)} hitSlop={8}>
+        <Pressable style={styles.playButton} onPress={toggle} hitSlop={8}>
           <Text style={styles.playText}>{isPlaying ? "⏸" : "▶"}</Text>
         </Pressable>
 
