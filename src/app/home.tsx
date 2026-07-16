@@ -52,6 +52,8 @@ export default function HomeScreen() {
   const wheelEmaRef = useRef(0);
   const wheelJumpStreakRef = useRef(0);
   const wheelGateOpenRef = useRef(true);
+  const activeIndexRef = useRef(0);
+  const pendingStepRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // iOSのサイレントモードでも再生できるようにする
   useEffect(() => {
@@ -174,6 +176,26 @@ export default function HomeScreen() {
   const activeSongId = activeSong?.id ?? null;
 
   // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  // 1曲ぶんリールを送る（最新のactiveIndexを参照するためref経由）
+  const stepReel = useCallback(
+    (direction: number) => {
+      const current = activeIndexRef.current;
+      const nextIndex = Math.max(0, Math.min(items.length - 1, current + direction));
+      if (nextIndex === current) {
+        return;
+      }
+      lastWheelAtRef.current = Date.now();
+      listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    },
+    [items.length],
+  );
+
+  const STEP_INTERVAL_MS = 350;
+
   const handleWheel = useCallback(
     (event: { deltaY: number }) => {
       const now = Date.now();
@@ -204,31 +226,40 @@ export default function HomeScreen() {
       if (!wheelGateOpenRef.current) {
         return;
       }
-      if (absDelta < 20) {
+      if (absDelta < 12) {
         return;
       }
 
       // ゲートはここで必ず閉じる（1ジェスチャー1曲）
       wheelGateOpenRef.current = false;
 
-      if (now - lastWheelAtRef.current < 500) {
-        return; // ステップの最短間隔（アニメーション中の暴発防止）
-      }
-
       const direction = event.deltaY > 0 ? 1 : -1;
-      const nextIndex = Math.max(
-        0,
-        Math.min(items.length - 1, activeIndex + direction),
-      );
-      if (nextIndex === activeIndex) {
+      const elapsed = now - lastWheelAtRef.current;
+
+      if (elapsed < STEP_INTERVAL_MS) {
+        // アニメーション直後の入力は捨てずに、間隔が空き次第実行する
+        if (!pendingStepRef.current) {
+          pendingStepRef.current = setTimeout(() => {
+            pendingStepRef.current = null;
+            stepReel(direction);
+          }, STEP_INTERVAL_MS - elapsed);
+        }
         return;
       }
 
-      lastWheelAtRef.current = now;
-      listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      stepReel(direction);
     },
-    [items.length, activeIndex],
+    [stepReel],
   );
+
+  // 画面離脱時に予約をクリア
+  useEffect(() => {
+    return () => {
+      if (pendingStepRef.current) {
+        clearTimeout(pendingStepRef.current);
+      }
+    };
+  }, []);
 
   // react-native-webはonWheelプロパティを伝えないため、DOMに直接リスナーを張る
   const handleWheelRef = useRef(handleWheel);
