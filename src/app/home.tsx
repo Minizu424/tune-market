@@ -48,6 +48,8 @@ export default function HomeScreen() {
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
+  const lastWheelEventAtRef = useRef(0);
+  const wheelGateOpenRef = useRef(true);
 
   // iOSのサイレントモードでも再生できるようにする
   useEffect(() => {
@@ -173,11 +175,23 @@ export default function HomeScreen() {
   const handleWheel = useCallback(
     (event: { deltaY: number }) => {
       const now = Date.now();
-      if (now - lastWheelAtRef.current < 500) {
-        return; // 連続入力は無視（1ジェスチャー1曲）
+
+      // 慣性スクロールは長く続くため、イベントの流れが150ms以上
+      // 途切れたときだけ「新しいジェスチャー」とみなしてゲートを開く。
+      // 1ジェスチャーで動かせるのは必ず1曲だけ。
+      const sinceLastEvent = now - lastWheelEventAtRef.current;
+      lastWheelEventAtRef.current = now;
+      if (sinceLastEvent > 150) {
+        wheelGateOpenRef.current = true;
+      }
+      if (!wheelGateOpenRef.current) {
+        return;
       }
       if (Math.abs(event.deltaY) < 20) {
         return;
+      }
+      if (now - lastWheelAtRef.current < 300) {
+        return; // ステップの最短間隔
       }
 
       const direction = event.deltaY > 0 ? 1 : -1;
@@ -189,6 +203,7 @@ export default function HomeScreen() {
         return;
       }
 
+      wheelGateOpenRef.current = false;
       lastWheelAtRef.current = now;
       listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     },
