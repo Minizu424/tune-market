@@ -52,6 +52,7 @@ export default function HomeScreen() {
   const wheelEmaRef = useRef(0);
   const wheelJumpStreakRef = useRef(0);
   const wheelGateOpenRef = useRef(true);
+  const wheelAccumRef = useRef(0);
   const activeIndexRef = useRef(0);
   const pendingStepRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -217,23 +218,29 @@ export default function HomeScreen() {
         wheelGateOpenRef.current = true;
         wheelJumpStreakRef.current = 0;
         wheelEmaRef.current = absDelta;
+        wheelAccumRef.current = 0;
       } else if (wheelJumpStreakRef.current >= 2) {
         // 慣性の減衰中に明確な再フリック
         wheelGateOpenRef.current = true;
         wheelJumpStreakRef.current = 0;
+        wheelAccumRef.current = 0;
       }
 
       if (!wheelGateOpenRef.current) {
         return;
       }
-      if (absDelta < 12) {
+
+      // 小さいスクロールも拾えるよう、ジェスチャー内の移動量を累積して判定する
+      wheelAccumRef.current += event.deltaY;
+      if (Math.abs(wheelAccumRef.current) < 25) {
         return;
       }
 
       // ゲートはここで必ず閉じる（1ジェスチャー1曲）
       wheelGateOpenRef.current = false;
 
-      const direction = event.deltaY > 0 ? 1 : -1;
+      const direction = wheelAccumRef.current > 0 ? 1 : -1;
+      wheelAccumRef.current = 0;
       const elapsed = now - lastWheelAtRef.current;
 
       if (elapsed < STEP_INTERVAL_MS) {
