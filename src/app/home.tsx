@@ -49,6 +49,7 @@ export default function HomeScreen() {
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
   const lastWheelEventAtRef = useRef(0);
+  const lastWheelDeltaRef = useRef(0);
   const wheelGateOpenRef = useRef(true);
 
   // iOSのサイレントモードでも再生できるようにする
@@ -175,23 +176,31 @@ export default function HomeScreen() {
   const handleWheel = useCallback(
     (event: { deltaY: number }) => {
       const now = Date.now();
+      const absDelta = Math.abs(event.deltaY);
 
-      // 慣性スクロールは長く続くため、イベントの流れが150ms以上
-      // 途切れたときだけ「新しいジェスチャー」とみなしてゲートを開く。
-      // 1ジェスチャーで動かせるのは必ず1曲だけ。
+      // 新しいジェスチャーの判定は2通り:
+      // 1) イベントの流れが150ms以上途切れた（指を離して一呼吸おいた）
+      // 2) 勢いが急に強くなった（慣性の減衰中に新しくフリックした）
       const sinceLastEvent = now - lastWheelEventAtRef.current;
+      const deltaJumped = absDelta > lastWheelDeltaRef.current * 1.5 + 10;
       lastWheelEventAtRef.current = now;
-      if (sinceLastEvent > 150) {
+      lastWheelDeltaRef.current = absDelta;
+
+      if (sinceLastEvent > 150 || deltaJumped) {
         wheelGateOpenRef.current = true;
       }
       if (!wheelGateOpenRef.current) {
         return;
       }
-      if (Math.abs(event.deltaY) < 20) {
+      if (absDelta < 20) {
         return;
       }
+
+      // ゲートはここで必ず閉じる（1ジェスチャー1曲）
+      wheelGateOpenRef.current = false;
+
       if (now - lastWheelAtRef.current < 300) {
-        return; // ステップの最短間隔
+        return; // ステップの最短間隔（アニメーション中の暴発防止）
       }
 
       const direction = event.deltaY > 0 ? 1 : -1;
@@ -203,7 +212,6 @@ export default function HomeScreen() {
         return;
       }
 
-      wheelGateOpenRef.current = false;
       lastWheelAtRef.current = now;
       listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     },
