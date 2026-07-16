@@ -197,7 +197,7 @@ export default function HomeScreen() {
       if (now - lastWheelAtRef.current < 350) {
         return;
       }
-      if (Math.abs(event.deltaY) < 20) {
+      if (Math.abs(event.deltaY) < 40) {
         return; // 小さいスクロールでは動かさない
       }
       stepReel(event.deltaY > 0 ? 1 : -1);
