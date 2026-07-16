@@ -48,6 +48,8 @@ export default function HomeScreen() {
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
+  const lastWheelEventAtRef = useRef(0);
+  const wheelSteppedRef = useRef(false);
   const activeIndexRef = useRef(0);
 
   // iOSのサイレントモードでも再生できるようにする
@@ -189,17 +191,26 @@ export default function HomeScreen() {
     [items.length],
   );
 
-  // Web用のホイール操作: スクロールしたら即1曲送る。
-  // 直後350msは無視するだけのシンプルな実装（慣性で稀に2曲動くのは許容）。
+  // Web用のホイール操作:
+  // スクロールが始まったら即1曲送り、イベントの流れ（慣性含む）が
+  // 150ms途切れるまでは追加で動かさない。
   const handleWheel = useCallback(
     (event: { deltaY: number }) => {
       const now = Date.now();
-      if (now - lastWheelAtRef.current < 350) {
-        return;
+      const sinceLastEvent = now - lastWheelEventAtRef.current;
+      lastWheelEventAtRef.current = now;
+
+      if (sinceLastEvent > 150) {
+        wheelSteppedRef.current = false; // 新しいジェスチャー
       }
-      if (Math.abs(event.deltaY) < 4) {
-        return;
+      if (wheelSteppedRef.current) {
+        return; // このジェスチャーでは送信済み
       }
+      if (Math.abs(event.deltaY) < 8) {
+        return; // ノイズ・慣性の残りカス
+      }
+
+      wheelSteppedRef.current = true;
       stepReel(event.deltaY > 0 ? 1 : -1);
     },
     [stepReel],
