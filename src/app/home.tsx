@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -45,12 +44,6 @@ export default function HomeScreen() {
 
   const player = useAudioPlayer();
   const currentAudioUrlRef = useRef<string | null>(null);
-  const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
-  const rootRef = useRef<View>(null);
-  const lastWheelAtRef = useRef(0);
-  const lastWheelEventAtRef = useRef(0);
-  const wheelSteppedRef = useRef(false);
-  const activeIndexRef = useRef(0);
 
   // iOSのサイレントモードでも再生できるようにする
   useEffect(() => {
@@ -173,72 +166,6 @@ export default function HomeScreen() {
   const activeSongId = activeSong?.id ?? null;
 
   // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
-  useEffect(() => {
-    activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
-
-  // 1曲ぶんリールを送る（最新のactiveIndexを参照するためref経由）
-  const stepReel = useCallback(
-    (direction: number) => {
-      const current = activeIndexRef.current;
-      const nextIndex = Math.max(0, Math.min(items.length - 1, current + direction));
-      if (nextIndex === current) {
-        return;
-      }
-      lastWheelAtRef.current = Date.now();
-      listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-    },
-    [items.length],
-  );
-
-  // Web用のホイール操作:
-  // スクロールが始まったら即1曲送り、イベントの流れ（慣性含む）が
-  // 150ms途切れるまでは追加で動かさない。
-  const handleWheel = useCallback(
-    (event: { deltaY: number }) => {
-      const now = Date.now();
-      const sinceLastEvent = now - lastWheelEventAtRef.current;
-      lastWheelEventAtRef.current = now;
-
-      if (sinceLastEvent > 150) {
-        wheelSteppedRef.current = false; // 新しいジェスチャー
-      }
-      if (wheelSteppedRef.current) {
-        return; // このジェスチャーでは送信済み
-      }
-      if (Math.abs(event.deltaY) < 8) {
-        return; // ノイズ・慣性の残りカス
-      }
-
-      wheelSteppedRef.current = true;
-      stepReel(event.deltaY > 0 ? 1 : -1);
-    },
-    [stepReel],
-  );
-
-  // react-native-webはonWheelプロパティを伝えないため、DOMに直接リスナーを張る
-  const handleWheelRef = useRef(handleWheel);
-  useEffect(() => {
-    handleWheelRef.current = handleWheel;
-  }, [handleWheel]);
-
-  useEffect(() => {
-    if (Platform.OS !== "web") {
-      return;
-    }
-    const node = rootRef.current as unknown as HTMLElement | null;
-    if (!node || typeof node.addEventListener !== "function") {
-      return;
-    }
-    const listener = (event: { deltaY: number }) => {
-      handleWheelRef.current(event);
-    };
-    node.addEventListener("wheel", listener as unknown as EventListener, {
-      passive: true,
-    });
-    return () =>
-      node.removeEventListener("wheel", listener as unknown as EventListener);
-  }, []);
 
   // リールの再生を記録する（株価計算の指標になる）
   // 2秒以上表示されたら1再生としてカウントし、表示時間を再生秒数として加算する
@@ -302,7 +229,6 @@ export default function HomeScreen() {
 
   return (
     <View
-      ref={rootRef}
       style={styles.root}
       onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
     >
@@ -318,7 +244,6 @@ export default function HomeScreen() {
         </View>
       ) : (
         <FlatList
-          ref={listRef}
           data={items}
           keyExtractor={keyExtractor}
           renderItem={({ item, index }) => (
@@ -339,8 +264,6 @@ export default function HomeScreen() {
           snapToInterval={viewportHeight}
           disableIntervalMomentum
           decelerationRate="fast"
-          // Webは自由スクロールを止めてホイールで1曲ずつ送る
-          scrollEnabled={Platform.OS !== "web"}
           showsVerticalScrollIndicator={false}
           getItemLayout={getItemLayout}
           viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
