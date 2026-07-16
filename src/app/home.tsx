@@ -46,6 +46,7 @@ export default function HomeScreen() {
   const player = useAudioPlayer();
   const currentAudioUrlRef = useRef<string | null>(null);
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
+  const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
 
   // iOSのサイレントモードでも再生できるようにする
@@ -194,6 +195,30 @@ export default function HomeScreen() {
     [items.length, activeIndex],
   );
 
+  // react-native-webはonWheelプロパティを伝えないため、DOMに直接リスナーを張る
+  const handleWheelRef = useRef(handleWheel);
+  useEffect(() => {
+    handleWheelRef.current = handleWheel;
+  }, [handleWheel]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      return;
+    }
+    const node = rootRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== "function") {
+      return;
+    }
+    const listener = (event: { deltaY: number }) => {
+      handleWheelRef.current(event);
+    };
+    node.addEventListener("wheel", listener as unknown as EventListener, {
+      passive: true,
+    });
+    return () =>
+      node.removeEventListener("wheel", listener as unknown as EventListener);
+  }, []);
+
   // リールの再生を記録する（株価計算の指標になる）
   // 2秒以上表示されたら1再生としてカウントし、表示時間を再生秒数として加算する
   useEffect(() => {
@@ -256,6 +281,7 @@ export default function HomeScreen() {
 
   return (
     <View
+      ref={rootRef}
       style={styles.root}
       onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
     >
@@ -299,7 +325,6 @@ export default function HomeScreen() {
           viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
           initialNumToRender={2}
           windowSize={3}
-          {...(Platform.OS === "web" ? ({ onWheel: handleWheel } as object) : {})}
         />
       )}
 
