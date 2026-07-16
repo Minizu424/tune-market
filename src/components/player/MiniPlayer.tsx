@@ -32,6 +32,7 @@ export function MiniPlayer() {
   // ベース位置は右下（styles.wrapper）。そこからの移動量で四隅を表現する。
   const pan = useRef(new Animated.ValueXY()).current;
   const restRef = useRef({ x: 0, y: 0 }); // 直近でスナップした位置
+  const cancelledRef = useRef(false); // マルチタッチでキャンセルしたか
   const dimsRef = useRef({ width, height });
   dimsRef.current = { width, height };
 
@@ -39,15 +40,38 @@ export function MiniPlayer() {
     PanResponder.create({
       // 少し動かしたときだけドラッグ扱いにする（タップはボタンに通す）
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        Math.abs(gesture.dx) > DRAG_THRESHOLD ||
-        Math.abs(gesture.dy) > DRAG_THRESHOLD,
+        gesture.numberActiveTouches === 1 &&
+        (Math.abs(gesture.dx) > DRAG_THRESHOLD ||
+          Math.abs(gesture.dy) > DRAG_THRESHOLD),
+      onPanResponderGrant: () => {
+        cancelledRef.current = false;
+      },
       onPanResponderMove: (_event, gesture) => {
+        // 2本目の指が触れたら、このジェスチャーはキャンセルして元の角へ戻す
+        if (gesture.numberActiveTouches > 1) {
+          if (!cancelledRef.current) {
+            cancelledRef.current = true;
+            Animated.spring(pan, {
+              toValue: restRef.current,
+              friction: 6,
+              useNativeDriver: false,
+            }).start();
+          }
+          return;
+        }
+        if (cancelledRef.current) {
+          return;
+        }
         pan.setValue({
           x: restRef.current.x + gesture.dx,
           y: restRef.current.y + gesture.dy,
         });
       },
       onPanResponderRelease: (_event, gesture) => {
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
         const { width: w, height: h } = dimsRef.current;
         // 四隅のオフセット（右下が原点 0,0）
         const leftX = -(w - PLAYER_SIZE - SIDE_MARGIN * 2);
