@@ -156,7 +156,6 @@ export default function HomeScreen() {
   ]);
 
   const activeSong = items[activeIndex]?.song ?? null;
-  const activeSongId = activeSong?.id ?? null;
 
   // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
   useEffect(() => {

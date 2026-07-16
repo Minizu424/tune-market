@@ -1,5 +1,4 @@
 import { router, useLocalSearchParams } from "expo-router";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -28,7 +27,7 @@ import {
   calculatePriceChangeRate,
   getSongById,
 } from "@/repositories/songsRepository";
-import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
+import { usePlayback } from "@/contexts/PlaybackContext";
 import { toggleSongLike } from "@/services/toggleSongLike";
 import type { Holding, Song } from "@/types";
 
@@ -45,21 +44,7 @@ export default function SongDetailScreen() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [liked, setLiked] = useState(false);
 
-  const player = useAudioPlayer(song?.audioUrl ? { uri: song.audioUrl } : null);
-  const playerStatus = useAudioPlayerStatus(player);
-
-  // 再生記録（1画面の滞在につき1再生、再生していた秒数を加算）
-  const hasRecordedPlayRef = useRef(false);
-  const listenStartRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      // 画面を離れるとき、再生中だった時間を記録する
-      if (listenStartRef.current && songId) {
-        addSongPlaySeconds(songId, (Date.now() - listenStartRef.current) / 1000);
-      }
-    };
-  }, [songId]);
+  const playback = usePlayback();
 
   const loadData = useCallback(async () => {
     if (!songId) {
@@ -168,25 +153,17 @@ export default function SongDetailScreen() {
 
       {song.audioUrl ? (
         <AppButton
-          title={playerStatus.playing ? "一時停止" : "▶ 試聴する"}
+          title={
+            playback.currentSong?.id === song.id && playback.isPlaying
+              ? "一時停止"
+              : "▶ 試聴する"
+          }
           variant="secondary"
           onPress={() => {
-            if (playerStatus.playing) {
-              player.pause();
-              if (listenStartRef.current) {
-                addSongPlaySeconds(
-                  song.id,
-                  (Date.now() - listenStartRef.current) / 1000,
-                );
-                listenStartRef.current = null;
-              }
+            if (playback.currentSong?.id === song.id) {
+              playback.toggle();
             } else {
-              if (!hasRecordedPlayRef.current) {
-                hasRecordedPlayRef.current = true;
-                registerSongPlay(song.id);
-              }
-              listenStartRef.current = Date.now();
-              player.play();
+              playback.playSingle(song);
             }
           }}
           style={styles.playButton}
