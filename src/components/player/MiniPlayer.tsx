@@ -56,15 +56,19 @@ export function MiniPlayer() {
         const x = restRef.current.x + gesture.dx;
         const y = restRef.current.y + gesture.dy;
 
-        // 最寄りの角を選ぶ（中間点との比較）
-        const targetX = x < leftX / 2 ? leftX : 0;
-        const targetY = y < topY / 2 ? topY : 0;
+        // 投げた勢い（速度）ぶん先を予測して、行き先の角を決める。
+        // これでフリックすれば離した位置が近くても遠い角まで飛ばせる。
+        const projectedX = x + gesture.vx * 200;
+        const projectedY = y + gesture.vy * 200;
+        const targetX = projectedX < leftX / 2 ? leftX : 0;
+        const targetY = projectedY < topY / 2 ? topY : 0;
 
         restRef.current = { x: targetX, y: targetY };
         Animated.spring(pan, {
           toValue: { x: targetX, y: targetY },
-          friction: 7,
-          tension: 60,
+          velocity: { x: gesture.vx, y: gesture.vy }, // 投げた速度を引き継ぐ
+          friction: 6,
+          tension: 30,
           useNativeDriver: false,
         }).start();
       },
