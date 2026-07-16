@@ -48,13 +48,7 @@ export default function HomeScreen() {
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
-  const lastWheelEventAtRef = useRef(0);
-  const wheelEmaRef = useRef(0);
-  const wheelJumpStreakRef = useRef(0);
-  const wheelGateOpenRef = useRef(true);
-  const wheelAccumRef = useRef(0);
   const activeIndexRef = useRef(0);
-  const pendingStepRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // iOSのサイレントモードでも再生できるようにする
   useEffect(() => {
@@ -195,78 +189,21 @@ export default function HomeScreen() {
     [items.length],
   );
 
-  const STEP_INTERVAL_MS = 350;
-
+  // Web用のホイール操作: スクロールしたら即1曲送る。
+  // 直後350msは無視するだけのシンプルな実装（慣性で稀に2曲動くのは許容）。
   const handleWheel = useCallback(
     (event: { deltaY: number }) => {
       const now = Date.now();
-      const absDelta = Math.abs(event.deltaY);
-      const sinceLastEvent = now - lastWheelEventAtRef.current;
-      lastWheelEventAtRef.current = now;
-
-      // 直近の勢いの移動平均（慣性の減衰カーブのベースライン）
-      const ema = wheelEmaRef.current;
-
-      // ベースラインを大きく超える入力が2連続 → 新しいフリックとみなす
-      // （イベント間引きによる単発スパイクでは発火しない）
-      const jumped = absDelta > ema * 2 + 15;
-      wheelJumpStreakRef.current = jumped ? wheelJumpStreakRef.current + 1 : 0;
-      wheelEmaRef.current = ema * 0.7 + absDelta * 0.3;
-
-      if (sinceLastEvent > 150) {
-        // イベントが途切れた → 新しいジェスチャー
-        wheelGateOpenRef.current = true;
-        wheelJumpStreakRef.current = 0;
-        wheelEmaRef.current = absDelta;
-        wheelAccumRef.current = 0;
-      } else if (wheelJumpStreakRef.current >= 2) {
-        // 慣性の減衰中に明確な再フリック
-        wheelGateOpenRef.current = true;
-        wheelJumpStreakRef.current = 0;
-        wheelAccumRef.current = 0;
-      }
-
-      if (!wheelGateOpenRef.current) {
+      if (now - lastWheelAtRef.current < 350) {
         return;
       }
-
-      // 小さいスクロールも拾えるよう、ジェスチャー内の移動量を累積して判定する
-      wheelAccumRef.current += event.deltaY;
-      if (Math.abs(wheelAccumRef.current) < 25) {
+      if (Math.abs(event.deltaY) < 4) {
         return;
       }
-
-      // ゲートはここで必ず閉じる（1ジェスチャー1曲）
-      wheelGateOpenRef.current = false;
-
-      const direction = wheelAccumRef.current > 0 ? 1 : -1;
-      wheelAccumRef.current = 0;
-      const elapsed = now - lastWheelAtRef.current;
-
-      if (elapsed < STEP_INTERVAL_MS) {
-        // アニメーション直後の入力は捨てずに、間隔が空き次第実行する
-        if (!pendingStepRef.current) {
-          pendingStepRef.current = setTimeout(() => {
-            pendingStepRef.current = null;
-            stepReel(direction);
-          }, STEP_INTERVAL_MS - elapsed);
-        }
-        return;
-      }
-
-      stepReel(direction);
+      stepReel(event.deltaY > 0 ? 1 : -1);
     },
     [stepReel],
   );
-
-  // 画面離脱時に予約をクリア
-  useEffect(() => {
-    return () => {
-      if (pendingStepRef.current) {
-        clearTimeout(pendingStepRef.current);
-      }
-    };
-  }, []);
 
   // react-native-webはonWheelプロパティを伝えないため、DOMに直接リスナーを張る
   const handleWheelRef = useRef(handleWheel);
