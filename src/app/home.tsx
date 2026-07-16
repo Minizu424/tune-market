@@ -49,7 +49,8 @@ export default function HomeScreen() {
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
   const lastWheelEventAtRef = useRef(0);
-  const lastWheelDeltaRef = useRef(0);
+  const wheelEmaRef = useRef(0);
+  const wheelJumpStreakRef = useRef(0);
   const wheelGateOpenRef = useRef(true);
 
   // iOSのサイレントモードでも再生できるようにする
@@ -177,18 +178,29 @@ export default function HomeScreen() {
     (event: { deltaY: number }) => {
       const now = Date.now();
       const absDelta = Math.abs(event.deltaY);
-
-      // 新しいジェスチャーの判定は2通り:
-      // 1) イベントの流れが150ms以上途切れた（指を離して一呼吸おいた）
-      // 2) 勢いが急に強くなった（慣性の減衰中に新しくフリックした）
       const sinceLastEvent = now - lastWheelEventAtRef.current;
-      const deltaJumped = absDelta > lastWheelDeltaRef.current * 1.5 + 10;
       lastWheelEventAtRef.current = now;
-      lastWheelDeltaRef.current = absDelta;
 
-      if (sinceLastEvent > 150 || deltaJumped) {
+      // 直近の勢いの移動平均（慣性の減衰カーブのベースライン）
+      const ema = wheelEmaRef.current;
+
+      // ベースラインを大きく超える入力が2連続 → 新しいフリックとみなす
+      // （イベント間引きによる単発スパイクでは発火しない）
+      const jumped = absDelta > ema * 2 + 15;
+      wheelJumpStreakRef.current = jumped ? wheelJumpStreakRef.current + 1 : 0;
+      wheelEmaRef.current = ema * 0.7 + absDelta * 0.3;
+
+      if (sinceLastEvent > 150) {
+        // イベントが途切れた → 新しいジェスチャー
         wheelGateOpenRef.current = true;
+        wheelJumpStreakRef.current = 0;
+        wheelEmaRef.current = absDelta;
+      } else if (wheelJumpStreakRef.current >= 2) {
+        // 慣性の減衰中に明確な再フリック
+        wheelGateOpenRef.current = true;
+        wheelJumpStreakRef.current = 0;
       }
+
       if (!wheelGateOpenRef.current) {
         return;
       }
@@ -199,7 +211,7 @@ export default function HomeScreen() {
       // ゲートはここで必ず閉じる（1ジェスチャー1曲）
       wheelGateOpenRef.current = false;
 
-      if (now - lastWheelAtRef.current < 300) {
+      if (now - lastWheelAtRef.current < 500) {
         return; // ステップの最短間隔（アニメーション中の暴発防止）
       }
 
