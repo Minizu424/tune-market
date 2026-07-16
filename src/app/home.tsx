@@ -1,4 +1,3 @@
-import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -18,8 +17,8 @@ import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint } from "@/lib/format";
+import { usePlayback } from "@/contexts/PlaybackContext";
 import { getLikedSongIds } from "@/repositories/likesRepository";
-import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
 import { toggleSongLike } from "@/services/toggleSongLike";
 import {
   getWeeklySupportRanking,
@@ -40,20 +39,15 @@ export default function HomeScreen() {
   const [viewportHeight, setViewportHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
-  const [focused, setFocused] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
-  const player = useAudioPlayer();
-  const currentAudioUrlRef = useRef<string | null>(null);
+  const playback = usePlayback();
+  const { playQueue } = playback;
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
   const activeIndexRef = useRef(0);
-
-  // iOSのサイレントモードでも再生できるようにする
-  useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true }).catch(console.error);
-  }, []);
+  const didInitRef = useRef(false);
 
   const loadSongs = useCallback(async () => {
     try {
@@ -68,14 +62,9 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setFocused(true);
       loadSongs();
       refreshProfile().catch(console.error);
-
-      return () => {
-        // 画面を離れたら再生を止める
-        setFocused(false);
-      };
+      // 画面を離れても再生は続ける（ミニプレイヤーに引き継ぐ）
     }, [loadSongs, refreshProfile]),
   );
 
@@ -168,7 +157,6 @@ export default function HomeScreen() {
   ]);
 
   const activeSong = items[activeIndex]?.song ?? null;
-  const activeSongId = activeSong?.id ?? null;
 
   // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
   useEffect(() => {
@@ -229,43 +217,47 @@ export default function HomeScreen() {
       node.removeEventListener("wheel", listener as unknown as EventListener);
   }, []);
 
-  // リールの再生を記録する（株価計算の指標になる）
-  // 2秒以上表示されたら1再生としてカウントし、表示時間を再生秒数として加算する
+  // 初回: キューを設定。すでに再生中の曲がリール内にあればそこから開始する
   useEffect(() => {
-    if (!focused || !activeSongId) {
+    if (didInitRef.current || items.length === 0 || viewportHeight === 0) {
       return;
     }
-    const songId = activeSongId;
-    const startedAt = Date.now();
-    const playTimer = setTimeout(() => {
-      registerSongPlay(songId);
-    }, 2000);
+    didInitRef.current = true;
+    const songs = items.map((item) => item.song);
+    const playingIndex = songs.findIndex(
+      (song) => song.id === playback.currentSong?.id,
+    );
+    const startIndex = playingIndex >= 0 ? playingIndex : 0;
+    setActiveIndex(startIndex);
+    if (startIndex > 0) {
+      listRef.current?.scrollToIndex({ index: startIndex, animated: false });
+    }
+    playQueue(songs, startIndex);
+  }, [items, viewportHeight, playQueue, playback.currentSong?.id]);
 
-    return () => {
-      clearTimeout(playTimer);
-      const seconds = (Date.now() - startedAt) / 1000;
-      if (seconds >= 1) {
-        addSongPlaySeconds(songId, seconds);
-      }
-    };
-  }, [focused, activeSongId]);
-
-  // 表示中のリールの曲だけを再生し、画面外の曲は停止する
+  // リール操作に合わせて再生する曲を切り替える
   useEffect(() => {
-    const audioUrl = focused ? activeSong?.audioUrl || null : null;
-
-    if (!audioUrl) {
-      player.pause();
+    if (!didInitRef.current || items.length === 0) {
       return;
     }
+    playQueue(
+      items.map((item) => item.song),
+      activeIndex,
+    );
+  }, [activeIndex, items, playQueue]);
 
-    if (currentAudioUrlRef.current !== audioUrl) {
-      currentAudioUrlRef.current = audioUrl;
-      player.replace({ uri: audioUrl });
-      player.loop = true;
+  // 曲が最後まで再生されて自動で次に進んだら、リールも追従してスクロールする
+  useEffect(() => {
+    if (!didInitRef.current) {
+      return;
     }
-    player.play();
-  }, [player, focused, activeSong?.audioUrl]);
+    const index = playback.currentIndex;
+    if (index >= 0 && index < items.length && index !== activeIndexRef.current) {
+      setActiveIndex(index);
+      listRef.current?.scrollToIndex({ index, animated: true });
+    }
+  }, [playback.currentIndex, items.length]);
+
 
   const handleCompleted = useCallback(() => {
     loadSongs();
