@@ -36,6 +36,30 @@ export function MiniPlayer() {
   const dimsRef = useRef({ width, height });
   dimsRef.current = { width, height };
 
+  // 現在位置から最寄りの角へスナップする（速度を渡すと投げた先を予測する）
+  const snapToNearestCorner = (x: number, y: number, vx = 0, vy = 0) => {
+    const { width: w, height: h } = dimsRef.current;
+    const leftX = -(w - PLAYER_SIZE - SIDE_MARGIN * 2);
+    const topY = -(h - PLAYER_SIZE - TOP_MARGIN - BOTTOM_MARGIN);
+
+    const projectedX = x + vx * 200;
+    const projectedY = y + vy * 200;
+    const targetX = projectedX < leftX / 2 ? leftX : 0;
+    const targetY = projectedY < topY / 2 ? topY : 0;
+
+    restRef.current = { x: targetX, y: targetY };
+    Animated.spring(pan, {
+      toValue: { x: targetX, y: targetY },
+      velocity: { x: vx, y: vy },
+      friction: 6,
+      tension: 30,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const snapRef = useRef(snapToNearestCorner);
+  snapRef.current = snapToNearestCorner;
+
   const panResponder = useRef(
     PanResponder.create({
       // 少し動かしたときだけドラッグ扱いにする（タップはボタンに通す）
@@ -47,15 +71,14 @@ export function MiniPlayer() {
         cancelledRef.current = false;
       },
       onPanResponderMove: (_event, gesture) => {
-        // 2本目の指が触れたら、このジェスチャーはキャンセルして元の角へ戻す
+        // 2本目の指が触れたら、その時点の位置から最寄りの角へスナップする
         if (gesture.numberActiveTouches > 1) {
           if (!cancelledRef.current) {
             cancelledRef.current = true;
-            Animated.spring(pan, {
-              toValue: restRef.current,
-              friction: 6,
-              useNativeDriver: false,
-            }).start();
+            snapRef.current(
+              restRef.current.x + gesture.dx,
+              restRef.current.y + gesture.dy,
+            );
           }
           return;
         }
@@ -72,37 +95,19 @@ export function MiniPlayer() {
           cancelledRef.current = false;
           return;
         }
-        const { width: w, height: h } = dimsRef.current;
-        // 四隅のオフセット（右下が原点 0,0）
-        const leftX = -(w - PLAYER_SIZE - SIDE_MARGIN * 2);
-        const topY = -(h - PLAYER_SIZE - TOP_MARGIN - BOTTOM_MARGIN);
-
-        const x = restRef.current.x + gesture.dx;
-        const y = restRef.current.y + gesture.dy;
-
-        // 投げた勢い（速度）ぶん先を予測して、行き先の角を決める。
-        // これでフリックすれば離した位置が近くても遠い角まで飛ばせる。
-        const projectedX = x + gesture.vx * 200;
-        const projectedY = y + gesture.vy * 200;
-        const targetX = projectedX < leftX / 2 ? leftX : 0;
-        const targetY = projectedY < topY / 2 ? topY : 0;
-
-        restRef.current = { x: targetX, y: targetY };
-        Animated.spring(pan, {
-          toValue: { x: targetX, y: targetY },
-          velocity: { x: gesture.vx, y: gesture.vy }, // 投げた速度を引き継ぐ
-          friction: 6,
-          tension: 30,
-          useNativeDriver: false,
-        }).start();
+        snapRef.current(
+          restRef.current.x + gesture.dx,
+          restRef.current.y + gesture.dy,
+          gesture.vx,
+          gesture.vy,
+        );
       },
-      onPanResponderTerminate: () => {
-        // ジェスチャーが中断されたら直近のスナップ位置へ戻す
-        Animated.spring(pan, {
-          toValue: restRef.current,
-          friction: 7,
-          useNativeDriver: false,
-        }).start();
+      onPanResponderTerminate: (_event, gesture) => {
+        // ジェスチャーが中断されたら、その時点の位置から最寄りの角へ
+        snapRef.current(
+          restRef.current.x + gesture.dx,
+          restRef.current.y + gesture.dy,
+        );
       },
     }),
   ).current;
