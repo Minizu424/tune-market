@@ -48,6 +48,15 @@ export default function HomeScreen() {
   const lastWheelAtRef = useRef(0);
   const activeIndexRef = useRef(0);
   const didInitRef = useRef(false);
+  const itemsRef = useRef<WeeklyRankingItem[]>([]);
+  const playQueueRef = useRef(playQueue);
+  const currentSongIdRef = useRef<string | null>(null);
+  // 自動スクロール（曲終了の自動送り）中の目的地。到着まで表示判定からの再生切替を止める
+  const autoScrollTargetRef = useRef<number | null>(null);
+
+  itemsRef.current = items;
+  playQueueRef.current = playQueue;
+  currentSongIdRef.current = playback.currentSong?.id ?? null;
 
   const loadSongs = useCallback(async () => {
     try {
@@ -142,8 +151,25 @@ export default function HomeScreen() {
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       const visible = viewableItems.find((token) => token.isViewable);
-      if (visible && typeof visible.index === "number") {
-        setActiveIndex(visible.index);
+      if (!visible || typeof visible.index !== "number") {
+        return;
+      }
+      const index = visible.index;
+      setActiveIndex(index);
+
+      // 自動スクロール中（曲終了の自動送りなど）は、途中経過のリールで
+      // 再生を切り替えない。目的地に到着したら解除する。
+      if (autoScrollTargetRef.current !== null) {
+        if (index === autoScrollTargetRef.current) {
+          autoScrollTargetRef.current = null;
+        }
+        return;
+      }
+
+      // ユーザーのスクロールによる切り替え
+      const songs = itemsRef.current.map((item) => item.song);
+      if (songs[index]) {
+        playQueueRef.current(songs, index);
       }
     },
     [],
@@ -229,22 +255,28 @@ export default function HomeScreen() {
     );
     const startIndex = playingIndex >= 0 ? playingIndex : 0;
     setActiveIndex(startIndex);
+    autoScrollTargetRef.current = startIndex;
     if (startIndex > 0) {
       listRef.current?.scrollToIndex({ index: startIndex, animated: false });
     }
     playQueue(songs, startIndex);
   }, [items, viewportHeight, playQueue, playback.currentSong?.id]);
 
-  // リール操作に合わせて再生する曲を切り替える
+  // 楽曲リストが更新されたら、再生中の曲を保ったままキューを差し替える
   useEffect(() => {
     if (!didInitRef.current || items.length === 0) {
       return;
     }
-    playQueue(
-      items.map((item) => item.song),
-      activeIndex,
+    const songs = items.map((item) => item.song);
+    const playingIndex = songs.findIndex(
+      (song) => song.id === currentSongIdRef.current,
     );
-  }, [activeIndex, items, playQueue]);
+    const index =
+      playingIndex >= 0
+        ? playingIndex
+        : Math.min(activeIndexRef.current, songs.length - 1);
+    playQueue(songs, index);
+  }, [items, playQueue]);
 
   // 曲が最後まで再生されて自動で次に進んだら、リールも追従してスクロールする
   useEffect(() => {
@@ -254,6 +286,7 @@ export default function HomeScreen() {
     const index = playback.currentIndex;
     if (index >= 0 && index < items.length && index !== activeIndexRef.current) {
       setActiveIndex(index);
+      autoScrollTargetRef.current = index;
       listRef.current?.scrollToIndex({ index, animated: true });
     }
   }, [playback.currentIndex, items.length]);
@@ -316,6 +349,9 @@ export default function HomeScreen() {
             />
           )}
           pagingEnabled
+          onScrollBeginDrag={() => {
+            autoScrollTargetRef.current = null;
+          }}
           // 勢いのあるスワイプでも次の1曲で必ず止める
           snapToInterval={viewportHeight}
           disableIntervalMomentum
