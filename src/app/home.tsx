@@ -20,6 +20,7 @@ import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
 import { formatPoint } from "@/lib/format";
 import { usePlayback } from "@/contexts/PlaybackContext";
 import { getLikedSongIds } from "@/repositories/likesRepository";
@@ -50,6 +51,7 @@ export default function HomeScreen() {
 
   const playback = usePlayback();
   const { playQueue } = playback;
+  const swipeHandlers = useSwipeTabs();
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
@@ -383,6 +385,7 @@ export default function HomeScreen() {
       ref={rootRef}
       style={styles.root}
       onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+      {...swipeHandlers}
     >
       {loading || viewportHeight === 0 ? (
         <View style={styles.center}>
