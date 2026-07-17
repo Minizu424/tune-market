@@ -1,4 +1,5 @@
 import { useAudioPlayerStatus } from "expo-audio";
+import { useRef } from "react";
 import { StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
@@ -35,7 +36,7 @@ export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
     player.seekTo(ratio * duration).catch(console.error);
   };
 
-  let barWidth = 0;
+  const barWidthRef = useRef(0);
 
   return (
     <View style={styles.container} pointerEvents={expanded ? "auto" : "none"}>
@@ -48,12 +49,12 @@ export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
       <View
         style={[styles.track, expanded && styles.trackExpanded]}
         onLayout={(event) => {
-          barWidth = event.nativeEvent.layout.width;
+          barWidthRef.current = event.nativeEvent.layout.width;
         }}
         onStartShouldSetResponder={() => expanded}
         onMoveShouldSetResponder={() => expanded}
-        onResponderGrant={(event) => seekToEvent(event, barWidth)}
-        onResponderMove={(event) => seekToEvent(event, barWidth)}
+        onResponderGrant={(event) => seekToEvent(event, barWidthRef.current)}
+        onResponderMove={(event) => seekToEvent(event, barWidthRef.current)}
       >
         <View style={[styles.fill, { width: `${progress * 100}%` }]} />
         {expanded && (

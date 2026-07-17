@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { ReelCard } from "@/components/reel/ReelCard";
+import { ReelSeekBar } from "@/components/reel/ReelSeekBar";
 import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
@@ -407,6 +408,8 @@ export default function HomeScreen() {
               isActive={index === activeIndex}
               weeklyRank={hasGenreFilter ? undefined : index + 1}
               isLiked={likedIds.has(item.song.id)}
+              isPaused={!playback.isPlaying}
+              onTogglePlay={playback.toggle}
               tagStates={tagFilter}
               onPressTag={cycleTag}
               onPressLike={() => handleToggleLike(item.song.id)}
@@ -432,6 +435,10 @@ export default function HomeScreen() {
           windowSize={3}
         />
       )}
+
+      {activeSong?.audioUrl ? (
+        <ReelSeekBar expanded={!playback.isPlaying} />
+      ) : null}
 
       <View style={styles.header} pointerEvents="none">
         <Text style={styles.headerTitle}>Tune Market</Text>
