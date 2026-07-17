@@ -73,23 +73,18 @@ export function CommentsSheet({
     setSnapState(target >= snapSizesRef.current.full ? "full" : "half");
     Animated.spring(sheetHeight, {
       toValue: target,
-      friction: 9,
-      tension: 60,
+      friction: 10,
+      tension: 120,
       useNativeDriver: false,
     }).start(after);
   };
 
   const closeSheet = () => {
-    Animated.timing(sheetHeight, {
-      toValue: 0,
-      duration: 160,
-      useNativeDriver: false,
-    }).start(() => {
-      heightRef.current = snapSizesRef.current.half;
-      sheetHeight.setValue(snapSizesRef.current.half);
-      setSnapState("half");
-      onCloseRef.current();
-    });
+    // Modalのスライドアウトに任せる（二重アニメーションによるラグを避ける）
+    heightRef.current = snapSizesRef.current.half;
+    sheetHeight.setValue(snapSizesRef.current.half);
+    setSnapState("half");
+    onCloseRef.current();
   };
 
   // ドラッグ終了時の共通スナップ処理
