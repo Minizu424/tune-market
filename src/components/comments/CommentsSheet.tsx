@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Colors } from "@/constants/colors";
@@ -52,46 +53,74 @@ export function CommentsSheet({
   const [error, setError] = useState<string | null>(null);
   const loadedForSongRef = useRef<string | null>(null);
 
-  // 下方向へのドラッグ（ハンドル部分）でシートを閉じる
-  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  // シートは「全画面 / 半分 / 閉じる」の3段階。
+  // ハンドル部分を上下にドラッグして切り替える。
+  const { height: windowHeight } = useWindowDimensions();
+  const FULL_HEIGHT = Math.round(windowHeight * 0.92);
+  const HALF_HEIGHT = Math.round(windowHeight * 0.55);
+
+  const sheetHeight = useRef(new Animated.Value(HALF_HEIGHT)).current;
+  const heightRef = useRef(HALF_HEIGHT); // 現在のスナップ高さ
+  const snapSizesRef = useRef({ full: FULL_HEIGHT, half: HALF_HEIGHT });
+  snapSizesRef.current = { full: FULL_HEIGHT, half: HALF_HEIGHT };
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  const animateTo = (target: number, after?: () => void) => {
+    heightRef.current = target;
+    Animated.spring(sheetHeight, {
+      toValue: target,
+      friction: 9,
+      tension: 60,
+      useNativeDriver: false,
+    }).start(after);
+  };
 
   const dragResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_event, gesture) => {
-        sheetTranslateY.setValue(Math.max(0, gesture.dy));
+        const { full } = snapSizesRef.current;
+        const next = Math.max(80, Math.min(full, heightRef.current - gesture.dy));
+        sheetHeight.setValue(next);
       },
       onPanResponderRelease: (_event, gesture) => {
-        if (gesture.dy > 90 || gesture.vy > 0.8) {
-          // 十分に引き下げたら閉じる
-          Animated.timing(sheetTranslateY, {
-            toValue: 600,
-            duration: 180,
-            useNativeDriver: true,
+        const { full, half } = snapSizesRef.current;
+        const current = heightRef.current - gesture.dy;
+        // 投げた勢いも加味して行き先を決める
+        const projected = current - gesture.vy * 200;
+
+        if (projected < half * 0.55) {
+          // 閉じる
+          Animated.timing(sheetHeight, {
+            toValue: 0,
+            duration: 160,
+            useNativeDriver: false,
           }).start(() => {
-            sheetTranslateY.setValue(0);
+            heightRef.current = half;
+            sheetHeight.setValue(half); // 次回はまた半分から
             onCloseRef.current();
           });
-        } else {
-          Animated.spring(sheetTranslateY, {
-            toValue: 0,
-            friction: 8,
-            useNativeDriver: true,
-          }).start();
+          return;
         }
+        // 全画面 or 半分の近い方へ
+        animateTo(projected > (full + half) / 2 ? full : half);
       },
       onPanResponderTerminate: () => {
-        Animated.spring(sheetTranslateY, {
-          toValue: 0,
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
+        animateTo(heightRef.current);
       },
     }),
   ).current;
+
+  // 開くたびに半分の高さから始める
+  useEffect(() => {
+    if (visible) {
+      heightRef.current = HALF_HEIGHT;
+      sheetHeight.setValue(HALF_HEIGHT);
+    }
+  }, [visible, HALF_HEIGHT, sheetHeight]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -197,9 +226,7 @@ export function CommentsSheet({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Animated.View
-            style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
-          >
+          <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
           <View style={styles.dragArea} {...dragResponder.panHandlers}>
             <View style={styles.handle} />
             <Text style={styles.title}>
@@ -286,11 +313,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
-    maxHeight: "75%",
+    overflow: "hidden",
   },
   dragArea: {
-    paddingTop: 2,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 10,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
   },
   handle: {
     alignSelf: "center",
@@ -311,9 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   list: {
-    minHeight: 180,
-    flexGrow: 0,
-    flexShrink: 1,
+    flex: 1,
   },
   listContent: {
     paddingBottom: 8,
