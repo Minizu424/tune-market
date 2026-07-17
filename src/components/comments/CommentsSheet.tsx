@@ -148,16 +148,15 @@ export function CommentsSheet({
   const listDragResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_event, gesture) => {
-        if (Math.abs(gesture.dy) <= Math.abs(gesture.dx)) {
+        if (Math.abs(gesture.dy) <= Math.abs(gesture.dx) || Math.abs(gesture.dy) < 6) {
           return false;
         }
-        if (gesture.dy > 6 && listScrollOffsetRef.current <= 0) {
-          return true; // 一番上で引き下げ
+        if (snapStateRef.current === "half") {
+          // 半分表示中はスクロール無効なので、どこを触ってもシートを動かせる
+          return true;
         }
-        if (gesture.dy < -6 && snapStateRef.current === "half") {
-          return true; // 半分から引き上げ
-        }
-        return false;
+        // 全画面中は「一覧が上端の状態での引き下げ」だけシート操作にする
+        return gesture.dy > 6 && listScrollOffsetRef.current <= 0;
       },
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_event, gesture) => handleDragMoveRef.current(gesture.dy),
@@ -392,6 +391,8 @@ export function CommentsSheet({
               renderItem={renderComment}
               style={styles.list}
               contentContainerStyle={styles.listContent}
+              scrollEnabled={snapState === "full"}
+              bounces={false}
               onScroll={(event) => {
                 listScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
               }}
