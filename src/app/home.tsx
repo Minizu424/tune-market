@@ -43,8 +43,9 @@ export default function HomeScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-  // ジャンルフィルター: タップで「含む」→「除外」→「解除」の3状態
+  // ジャンル/タグフィルター: タップで「含む」→「除外」→「解除」の3状態
   const [genreFilter, setGenreFilter] = useState<Record<string, "include" | "exclude">>({});
+  const [tagFilter, setTagFilter] = useState<Record<string, "include" | "exclude">>({});
 
   const playback = usePlayback();
   const { playQueue } = playback;
@@ -59,34 +60,69 @@ export default function HomeScreen() {
   // 自動スクロール（曲終了の自動送り）中の目的地。到着まで表示判定からの再生切替を止める
   const autoScrollTargetRef = useRef<number | null>(null);
 
+  // 読み込んだ楽曲に付いているタグの一覧（使用数順）
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { song } of items) {
+      for (const tag of song.tags ?? []) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag]) => tag)
+      .slice(0, 12);
+  }, [items]);
+
   const filteredItems = useMemo(() => {
-    const included = GENRES.filter((g) => genreFilter[g] === "include");
-    const excluded = GENRES.filter((g) => genreFilter[g] === "exclude");
+    const includedGenres = GENRES.filter((g) => genreFilter[g] === "include");
+    const excludedGenres = GENRES.filter((g) => genreFilter[g] === "exclude");
+    const includedTags = Object.keys(tagFilter).filter(
+      (t) => tagFilter[t] === "include",
+    );
+    const excludedTags = Object.keys(tagFilter).filter(
+      (t) => tagFilter[t] === "exclude",
+    );
+
     return items.filter(({ song }) => {
-      if (excluded.includes(song.genre as (typeof GENRES)[number])) {
+      const genre = song.genre as (typeof GENRES)[number];
+      if (excludedGenres.includes(genre)) {
         return false;
       }
-      if (included.length > 0) {
-        return included.includes(song.genre as (typeof GENRES)[number]);
+      if (includedGenres.length > 0 && !includedGenres.includes(genre)) {
+        return false;
+      }
+      const tags = song.tags ?? [];
+      if (excludedTags.some((t) => tags.includes(t))) {
+        return false;
+      }
+      if (includedTags.length > 0 && !includedTags.some((t) => tags.includes(t))) {
+        return false;
       }
       return true;
     });
-  }, [items, genreFilter]);
-  const hasGenreFilter = Object.keys(genreFilter).length > 0;
+  }, [items, genreFilter, tagFilter]);
+  const hasGenreFilter =
+    Object.keys(genreFilter).length > 0 || Object.keys(tagFilter).length > 0;
 
-  const cycleGenre = useCallback((genre: string) => {
-    setGenreFilter((prev) => {
-      const next = { ...prev };
-      if (!next[genre]) {
-        next[genre] = "include";
-      } else if (next[genre] === "include") {
-        next[genre] = "exclude";
-      } else {
-        delete next[genre];
-      }
-      return next;
-    });
-  }, []);
+  const cycleFilter = useCallback(
+    (setter: typeof setGenreFilter) => (key: string) => {
+      setter((prev) => {
+        const next = { ...prev };
+        if (!next[key]) {
+          next[key] = "include";
+        } else if (next[key] === "include") {
+          next[key] = "exclude";
+        } else {
+          delete next[key];
+        }
+        return next;
+      });
+    },
+    [],
+  );
+  const cycleGenre = useMemo(() => cycleFilter(setGenreFilter), [cycleFilter]);
+  const cycleTag = useMemo(() => cycleFilter(setTagFilter), [cycleFilter]);
 
   itemsRef.current = filteredItems;
   playQueueRef.current = playQueue;
@@ -423,7 +459,13 @@ export default function HomeScreen() {
           contentContainerStyle={styles.genreBarContent}
         >
           {hasGenreFilter && (
-            <Pressable style={styles.genreChip} onPress={() => setGenreFilter({})}>
+            <Pressable
+              style={styles.genreChip}
+              onPress={() => {
+                setGenreFilter({});
+                setTagFilter({});
+              }}
+            >
               <Text style={styles.genreChipText}>リセット</Text>
             </Pressable>
           )}
@@ -451,9 +493,42 @@ export default function HomeScreen() {
             );
           })}
         </ScrollView>
+
+        {availableTags.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.genreBarContent, styles.tagBarContent]}
+          >
+            {availableTags.map((tag) => {
+              const mode = tagFilter[tag];
+              return (
+                <Pressable
+                  key={tag}
+                  style={[
+                    styles.genreChip,
+                    mode === "include" && styles.genreChipInclude,
+                    mode === "exclude" && styles.genreChipExclude,
+                  ]}
+                  onPress={() => cycleTag(tag)}
+                >
+                  <Text
+                    style={[
+                      styles.genreChipText,
+                      mode != null && styles.genreChipTextActive,
+                    ]}
+                  >
+                    {mode === "exclude" ? `✕ #${tag}` : `#${tag}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {hasGenreFilter && (
           <Text style={styles.genreHint}>
-            紫=このジャンルを再生 / 赤=除外（タップで切替）
+            紫=これを再生 / 赤=除外（タップで切替）
           </Text>
         )}
       </View>
@@ -559,6 +634,9 @@ const styles = StyleSheet.create({
   genreBarContent: {
     paddingHorizontal: 16,
     gap: 8,
+  },
+  tagBarContent: {
+    paddingTop: 8,
   },
   genreChip: {
     borderRadius: 999,
