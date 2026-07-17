@@ -109,20 +109,60 @@ export function CommentsSheet({
     animateTo(projected > (full + half) / 2 ? full : half);
   };
 
+  const snapStateRef = useRef<"half" | "full">("half");
+  snapStateRef.current = snapState;
+  const listScrollOffsetRef = useRef(0);
+
+  const handleDragMove = (dy: number) => {
+    const { full } = snapSizesRef.current;
+    const next = Math.max(80, Math.min(full, heightRef.current - dy));
+    // 高さは触らず、ずれぶんだけ transform で動かす（軽い）
+    sheetTranslate.setValue(heightRef.current - next);
+  };
+  const handleDragRelease = (dy: number, vy: number) => {
+    settleAt(heightRef.current - dy, vy);
+  };
+  const handleDragMoveRef = useRef(handleDragMove);
+  const handleDragReleaseRef = useRef(handleDragRelease);
+  handleDragMoveRef.current = handleDragMove;
+  handleDragReleaseRef.current = handleDragRelease;
+
+  // ハンドル/ヘッダー部分のドラッグ
   const dragResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
         Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
-      onPanResponderMove: (_event, gesture) => {
-        const { full } = snapSizesRef.current;
-        const next = Math.max(80, Math.min(full, heightRef.current - gesture.dy));
-        // 高さは触らず、ずれぶんだけ transform で動かす（軽い）
-        sheetTranslate.setValue(heightRef.current - next);
+      onPanResponderMove: (_event, gesture) => handleDragMoveRef.current(gesture.dy),
+      onPanResponderRelease: (_event, gesture) =>
+        handleDragReleaseRef.current(gesture.dy, gesture.vy),
+      onPanResponderTerminate: () => {
+        animateTo(heightRef.current);
       },
-      onPanResponderRelease: (_event, gesture) => {
-        settleAt(heightRef.current - gesture.dy, gesture.vy);
+    }),
+  ).current;
+
+  // コメント一覧の上のスワイプでもシートを動かす:
+  // ・一覧が一番上の状態で下スワイプ → シートを下げる
+  // ・半分表示中の上スワイプ → まず全画面に広げる（以降は一覧がスクロール）
+  const listDragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_event, gesture) => {
+        if (Math.abs(gesture.dy) <= Math.abs(gesture.dx)) {
+          return false;
+        }
+        if (gesture.dy > 6 && listScrollOffsetRef.current <= 0) {
+          return true; // 一番上で引き下げ
+        }
+        if (gesture.dy < -6 && snapStateRef.current === "half") {
+          return true; // 半分から引き上げ
+        }
+        return false;
       },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_event, gesture) => handleDragMoveRef.current(gesture.dy),
+      onPanResponderRelease: (_event, gesture) =>
+        handleDragReleaseRef.current(gesture.dy, gesture.vy),
       onPanResponderTerminate: () => {
         animateTo(heightRef.current);
       },
@@ -345,12 +385,17 @@ export function CommentsSheet({
           {loading ? (
             <ActivityIndicator color={Colors.accent} style={styles.loading} />
           ) : (
+            <View style={styles.listWrapper} {...listDragResponder.panHandlers}>
             <FlatList
               data={comments}
               keyExtractor={(item) => item.id}
               renderItem={renderComment}
               style={styles.list}
               contentContainerStyle={styles.listContent}
+              onScroll={(event) => {
+                listScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
               onEndReached={loadMore}
               onEndReachedThreshold={0.3}
               ListEmptyComponent={
@@ -368,6 +413,7 @@ export function CommentsSheet({
                 ) : null
               }
             />
+            </View>
           )}
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -467,6 +513,9 @@ const styles = StyleSheet.create({
   },
   loading: {
     paddingVertical: 40,
+  },
+  listWrapper: {
+    flex: 1,
   },
   list: {
     flex: 1,
