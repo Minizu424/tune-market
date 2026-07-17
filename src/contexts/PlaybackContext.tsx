@@ -50,6 +50,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const indexRef = useRef(-1);
   const audioUrlRef = useRef<string | null>(null);
   const registeredSongIdRef = useRef<string | null>(null);
+  // useAudioPlayerの戻り値は描画ごとに参照が変わることがあるため、
+  // コールバックからはrefを通して常に最新のplayerを使う（無限ループ防止）
+  const playerRef = useRef(player);
+  playerRef.current = player;
+  // 1回の再生終了につき1回だけ次の曲へ進むためのガード
+  const finishHandledRef = useRef(false);
 
   useEffect(() => {
     // iOSのサイレントモードでも再生できるようにする
@@ -59,24 +65,23 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const currentSong =
     currentIndex >= 0 ? (queue[currentIndex] ?? null) : null;
 
-  const loadSong = useCallback(
-    (song: Song | null) => {
-      const url = song?.audioUrl || null;
-      if (url) {
-        if (audioUrlRef.current !== url) {
-          audioUrlRef.current = url;
-          player.replace({ uri: url });
-        }
-        player.loop = false;
-        player.play();
-      } else {
-        // 音源のない曲は表示だけ（再生は止める）
-        audioUrlRef.current = null;
-        player.pause();
+  const loadSong = useCallback((song: Song | null) => {
+    const currentPlayer = playerRef.current;
+    finishHandledRef.current = false;
+    const url = song?.audioUrl || null;
+    if (url) {
+      if (audioUrlRef.current !== url) {
+        audioUrlRef.current = url;
+        currentPlayer.replace({ uri: url });
       }
-    },
-    [player],
-  );
+      currentPlayer.loop = false;
+      currentPlayer.play();
+    } else {
+      // 音源のない曲は表示だけ（再生は止める）
+      audioUrlRef.current = null;
+      currentPlayer.pause();
+    }
+  }, []);
 
   const applyIndex = useCallback(
     (songs: Song[], index: number) => {
@@ -121,13 +126,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       const current = queueRef.current[indexRef.current];
       if (current?.id === song.id) {
         if (song.audioUrl) {
-          player.play();
+          playerRef.current.play();
         }
         return;
       }
       applyIndex([song], 0);
     },
-    [applyIndex, player],
+    [applyIndex],
   );
 
   const toggle = useCallback(() => {
@@ -135,27 +140,33 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     if (!song?.audioUrl) {
       return;
     }
-    if (player.playing) {
-      player.pause();
+    if (playerRef.current.playing) {
+      playerRef.current.pause();
     } else {
-      player.play();
+      playerRef.current.play();
     }
-  }, [player]);
+  }, []);
 
   const stop = useCallback(() => {
-    player.pause();
+    playerRef.current.pause();
     audioUrlRef.current = null;
     queueRef.current = [];
     indexRef.current = -1;
     setQueue([]);
     setCurrentIndex(-1);
-  }, [player]);
+  }, []);
 
   // 曲が最後まで再生されたら、次の曲（音源のない曲はスキップ）へ進む
   useEffect(() => {
     if (!status.didJustFinish) {
+      finishHandledRef.current = false;
       return;
     }
+    if (finishHandledRef.current) {
+      return; // この終了はすでに処理済み（多重発火防止）
+    }
+    finishHandledRef.current = true;
+
     const songs = queueRef.current;
     const index = indexRef.current;
     if (songs.length === 0 || index < 0) {
@@ -163,7 +174,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     }
     if (songs.length === 1) {
       // 単曲再生（詳細画面の試聴など）は最後で停止
-      player.pause();
+      playerRef.current.pause();
       return;
     }
     for (let step = 1; step <= songs.length; step += 1) {
@@ -173,7 +184,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         return;
       }
     }
-  }, [status.didJustFinish, applyIndex, player]);
+  }, [status.didJustFinish, applyIndex]);
 
   // 再生記録（株価の指標）: 2秒以上の再生で1再生、再生時間も加算
   const currentSongId = currentSong?.id ?? null;
