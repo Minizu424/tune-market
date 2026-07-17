@@ -10,6 +10,7 @@ import {
 import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { Screen } from "@/components/ui/Screen";
+import { TagInput } from "@/components/ui/TagInput";
 import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
@@ -31,6 +32,7 @@ export default function NewSongScreen() {
 
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
+  const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [progress, setProgress] = useState(0);
   const [audioUrl, setAudioUrl] = useState("");
@@ -82,6 +84,7 @@ export default function NewSongScreen() {
         artistName: artist.artistName,
         title: title.trim(),
         genre,
+        tags,
         description: description.trim(),
         audioUrl: audioUrl.trim(),
         jacketUrl: jacketUrl.trim(),
@@ -147,6 +150,9 @@ export default function NewSongScreen() {
           </Pressable>
         ))}
       </View>
+
+      <Text style={styles.label}>タグ（任意）</Text>
+      <TagInput tags={tags} onChange={setTags} />
 
       <Text style={styles.label}>楽曲の説明</Text>
       <TextInput

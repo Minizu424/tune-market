@@ -18,6 +18,8 @@ export type Song = {
   artistName: string;
   title: string;
   genre: string;
+  /** アーティストが自由に付けられるタグ（最大5個） */
+  tags?: string[];
   description: string;
   audioUrl: string;
   jacketUrl: string;

@@ -11,6 +11,7 @@ import {
 import { notify } from "@/lib/notify";
 import { AppButton } from "@/components/ui/AppButton";
 import { Screen } from "@/components/ui/Screen";
+import { TagInput } from "@/components/ui/TagInput";
 import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
@@ -28,6 +29,7 @@ export default function EditSongScreen() {
 
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState<string>(GENRES[0]);
+  const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [jacketUrl, setJacketUrl] = useState("");
@@ -44,6 +46,7 @@ export default function EditSongScreen() {
         if (songData) {
           setTitle(songData.title);
           setGenre(songData.genre);
+          setTags(songData.tags ?? []);
           setDescription(songData.description);
           setAudioUrl(songData.audioUrl);
           setJacketUrl(songData.jacketUrl);
@@ -78,6 +81,7 @@ export default function EditSongScreen() {
       await updateSong(song.id, {
         title: title.trim(),
         genre,
+        tags,
         description: description.trim(),
         audioUrl: audioUrl.trim(),
         jacketUrl: jacketUrl.trim(),
@@ -140,6 +144,9 @@ export default function EditSongScreen() {
           </Pressable>
         ))}
       </View>
+
+      <Text style={styles.label}>タグ（任意）</Text>
+      <TagInput tags={tags} onChange={setTags} />
 
       <Text style={styles.label}>楽曲の説明</Text>
       <TextInput
