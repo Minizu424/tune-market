@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,6 +42,7 @@ export default function HomeScreen() {
   const { profile, refreshProfile } = useAuthUser();
   const [items, setItems] = useState<WeeklyRankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
@@ -363,6 +365,19 @@ export default function HomeScreen() {
     refreshProfile().catch(console.error);
   }, [loadSongs, refreshProfile]);
 
+  // 一番上で引っ張るとランキングを再読み込みする
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadSongs();
+      await refreshProfile();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadSongs, refreshProfile]);
+
   const keyExtractor = useCallback(
     (item: WeeklyRankingItem) => item.song.id,
     [],
@@ -425,6 +440,13 @@ export default function HomeScreen() {
           onScrollBeginDrag={() => {
             autoScrollTargetRef.current = null;
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.accent}
+            />
+          }
           // 勢いのあるスワイプでも次の1曲で必ず止める
           snapToInterval={viewportHeight}
           disableIntervalMomentum
