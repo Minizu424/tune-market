@@ -129,7 +129,12 @@ export default function SongDetailScreen() {
       <View style={styles.header}>
         <SongJacket jacketUrl={song.jacketUrl} title={song.title} size={84} />
         <View style={styles.headerInfo}>
-          <Text style={styles.genre}>{song.genre}</Text>
+          <Text style={styles.genre}>
+            {song.genre}
+            {song.tags && song.tags.length > 0
+              ? `  ${song.tags.map((tag) => `#${tag}`).join(" ")}`
+              : ""}
+          </Text>
           <Text style={styles.title}>{song.title}</Text>
           <Text style={styles.artist}>{song.artistName}</Text>
         </View>

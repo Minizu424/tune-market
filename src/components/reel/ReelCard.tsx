@@ -108,6 +108,12 @@ export function ReelCard({
           {song.artistName}
         </Text>
 
+        {song.tags && song.tags.length > 0 && (
+          <Text style={styles.tags} numberOfLines={1}>
+            {song.tags.map((tag) => `#${tag}`).join("  ")}
+          </Text>
+        )}
+
         <View style={styles.priceRow}>
           <Text style={styles.price}>{formatPoint(song.currentPrice)} pt</Text>
           <Text style={[styles.change, { color: changeColor }]}>
@@ -241,7 +247,13 @@ const styles = StyleSheet.create({
     color: "#D1D5DB",
     fontSize: 15,
     fontWeight: "600",
-    marginBottom: 10,
+    marginBottom: 4,
+  },
+  tags: {
+    color: Colors.accentSoft,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 8,
   },
   priceRow: {
     flexDirection: "row",
