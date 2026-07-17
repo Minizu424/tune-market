@@ -1,6 +1,6 @@
 import { useAudioPlayerStatus } from "expo-audio";
-import { useRef } from "react";
-import { StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import { useRef, useState } from "react";
+import { PanResponder, StyleSheet, Text, View } from "react-native";
 import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
@@ -18,47 +18,87 @@ function formatTime(seconds: number): string {
 
 /**
  * リール下部のシークバー。
- * このコンポーネントだけがplayerのステータスを購読するので、
- * 0.5秒ごとの再生位置更新でリール全体が再描画されることはない。
+ * ドラッグ中はローカルの表示位置だけを動かし、指を離した瞬間に1回だけ
+ * seekTo する（ドラッグのたびにシークすると引っかかるため）。
  */
 export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
   const { player } = usePlayback();
   const status = useAudioPlayerStatus(player);
 
-  const duration = status.duration || 0;
-  const progress = duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
+  const barWidthRef = useRef(0);
+  const [dragRatio, setDragRatio] = useState<number | null>(null);
+  const dragRatioRef = useRef<number | null>(null);
 
-  const seekToEvent = (event: GestureResponderEvent, barWidth: number) => {
-    if (duration <= 0 || barWidth <= 0) {
-      return;
+  const duration = status.duration || 0;
+  const statusRatio =
+    duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
+  // ドラッグ中はドラッグ位置を優先して表示
+  const ratio = dragRatio ?? statusRatio;
+
+  const ratioFromX = (x: number) => {
+    const width = barWidthRef.current;
+    if (width <= 0) {
+      return 0;
     }
-    const ratio = Math.max(0, Math.min(1, event.nativeEvent.locationX / barWidth));
-    player.seekTo(ratio * duration).catch(console.error);
+    return Math.max(0, Math.min(1, x / width));
   };
 
-  const barWidthRef = useRef(0);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      // リール（縦FlatList）に奪われないようにする
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (event) => {
+        const next = ratioFromX(event.nativeEvent.locationX);
+        dragRatioRef.current = next;
+        setDragRatio(next);
+      },
+      onPanResponderMove: (event) => {
+        const next = ratioFromX(event.nativeEvent.locationX);
+        dragRatioRef.current = next;
+        setDragRatio(next);
+      },
+      onPanResponderRelease: () => {
+        const finalRatio = dragRatioRef.current;
+        dragRatioRef.current = null;
+        if (finalRatio != null) {
+          player.seekTo(finalRatio * (player.duration || 0)).catch(console.error);
+        }
+        // シーク完了までドラッグ位置を表示し続け、少し後に実位置へ戻す
+        setTimeout(() => setDragRatio(null), 350);
+      },
+      onPanResponderTerminate: () => {
+        dragRatioRef.current = null;
+        setDragRatio(null);
+      },
+    }),
+  ).current;
 
   return (
     <View style={styles.container} pointerEvents={expanded ? "auto" : "none"}>
       {expanded && (
         <View style={styles.timeRow}>
-          <Text style={styles.time}>{formatTime(status.currentTime)}</Text>
+          <Text style={styles.time}>
+            {formatTime(ratio * duration)}
+          </Text>
           <Text style={styles.time}>{formatTime(duration)}</Text>
         </View>
       )}
+
+      {/* 当たり判定を広めに取ったドラッグ領域 */}
       <View
-        style={[styles.track, expanded && styles.trackExpanded]}
+        style={styles.touchArea}
         onLayout={(event) => {
           barWidthRef.current = event.nativeEvent.layout.width;
         }}
-        onStartShouldSetResponder={() => expanded}
-        onMoveShouldSetResponder={() => expanded}
-        onResponderGrant={(event) => seekToEvent(event, barWidthRef.current)}
-        onResponderMove={(event) => seekToEvent(event, barWidthRef.current)}
+        {...(expanded ? panResponder.panHandlers : {})}
       >
-        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+        <View style={[styles.track, expanded && styles.trackExpanded]}>
+          <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
+        </View>
         {expanded && (
-          <View style={[styles.knob, { left: `${progress * 100}%` }]} />
+          <View style={[styles.knob, { left: `${ratio * 100}%` }]} />
         )}
       </View>
     </View>
@@ -75,7 +115,7 @@ const styles = StyleSheet.create({
   timeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   time: {
     color: "rgba(255,255,255,0.9)",
@@ -84,17 +124,18 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowRadius: 4,
   },
+  touchArea: {
+    height: 32,
+    justifyContent: "center",
+  },
   track: {
     height: 3,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.25)",
-    justifyContent: "center",
+    overflow: "hidden",
   },
   trackExpanded: {
-    height: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 999,
-    paddingHorizontal: 0,
+    height: 8,
   },
   fill: {
     position: "absolute",
@@ -106,10 +147,13 @@ const styles = StyleSheet.create({
   },
   knob: {
     position: "absolute",
-    width: 14,
-    height: 14,
+    width: 18,
+    height: 18,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
-    marginLeft: -7,
+    marginLeft: -9,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
   },
 });
