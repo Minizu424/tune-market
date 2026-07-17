@@ -66,14 +66,41 @@ export function CommentsSheet({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  const [snapState, setSnapState] = useState<"half" | "full">("half");
+
   const animateTo = (target: number, after?: () => void) => {
     heightRef.current = target;
+    setSnapState(target >= snapSizesRef.current.full ? "full" : "half");
     Animated.spring(sheetHeight, {
       toValue: target,
       friction: 9,
       tension: 60,
       useNativeDriver: false,
     }).start(after);
+  };
+
+  const closeSheet = () => {
+    Animated.timing(sheetHeight, {
+      toValue: 0,
+      duration: 160,
+      useNativeDriver: false,
+    }).start(() => {
+      heightRef.current = snapSizesRef.current.half;
+      sheetHeight.setValue(snapSizesRef.current.half);
+      setSnapState("half");
+      onCloseRef.current();
+    });
+  };
+
+  // ドラッグ終了時の共通スナップ処理
+  const settleAt = (currentHeight: number, velocityY: number) => {
+    const { full, half } = snapSizesRef.current;
+    const projected = currentHeight - velocityY * 200;
+    if (projected < half * 0.55) {
+      closeSheet();
+      return;
+    }
+    animateTo(projected > (full + half) / 2 ? full : half);
   };
 
   const dragResponder = useRef(
@@ -87,26 +114,7 @@ export function CommentsSheet({
         sheetHeight.setValue(next);
       },
       onPanResponderRelease: (_event, gesture) => {
-        const { full, half } = snapSizesRef.current;
-        const current = heightRef.current - gesture.dy;
-        // 投げた勢いも加味して行き先を決める
-        const projected = current - gesture.vy * 200;
-
-        if (projected < half * 0.55) {
-          // 閉じる
-          Animated.timing(sheetHeight, {
-            toValue: 0,
-            duration: 160,
-            useNativeDriver: false,
-          }).start(() => {
-            heightRef.current = half;
-            sheetHeight.setValue(half); // 次回はまた半分から
-            onCloseRef.current();
-          });
-          return;
-        }
-        // 全画面 or 半分の近い方へ
-        animateTo(projected > (full + half) / 2 ? full : half);
+        settleAt(heightRef.current - gesture.dy, gesture.vy);
       },
       onPanResponderTerminate: () => {
         animateTo(heightRef.current);
@@ -119,8 +127,64 @@ export function CommentsSheet({
     if (visible) {
       heightRef.current = HALF_HEIGHT;
       sheetHeight.setValue(HALF_HEIGHT);
+      setSnapState("half");
     }
   }, [visible, HALF_HEIGHT, sheetHeight]);
+
+  // Web用ドラッグ: DOMのポインターイベントで直接動かす
+  const dragAreaRef = useRef<View>(null);
+  const settleAtRef = useRef(settleAt);
+  settleAtRef.current = settleAt;
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible) {
+      return;
+    }
+    const node = dragAreaRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== "function") {
+      return;
+    }
+
+    let drag: { startY: number; base: number; last: number; lastAt: number } | null =
+      null;
+
+    const onDown = (event: PointerEvent) => {
+      drag = {
+        startY: event.clientY,
+        base: heightRef.current,
+        last: heightRef.current,
+        lastAt: Date.now(),
+      };
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!drag) {
+        return;
+      }
+      const next = Math.max(
+        80,
+        Math.min(snapSizesRef.current.full, drag.base + (drag.startY - event.clientY)),
+      );
+      drag.last = next;
+      drag.lastAt = Date.now();
+      sheetHeight.setValue(next);
+    };
+    const onUp = () => {
+      if (!drag) {
+        return;
+      }
+      settleAtRef.current(drag.last, 0);
+      drag = null;
+    };
+
+    node.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      node.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [visible, sheetHeight]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -227,11 +291,39 @@ export function CommentsSheet({
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
-          <View style={styles.dragArea} {...dragResponder.panHandlers}>
+          <View
+            ref={dragAreaRef}
+            style={styles.dragArea}
+            {...dragResponder.panHandlers}
+          >
             <View style={styles.handle} />
-            <Text style={styles.title}>
-              コメント（{formatPoint(song.commentCount)}）
-            </Text>
+            <View style={styles.headerRow}>
+              <Pressable
+                style={styles.headerButton}
+                onPress={closeSheet}
+                hitSlop={8}
+              >
+                <Text style={styles.headerButtonText}>✕</Text>
+              </Pressable>
+              <Text style={styles.title}>
+                コメント（{formatPoint(song.commentCount)}）
+              </Text>
+              <Pressable
+                style={styles.headerButton}
+                onPress={() =>
+                  animateTo(
+                    snapState === "full"
+                      ? snapSizesRef.current.half
+                      : snapSizesRef.current.full,
+                  )
+                }
+                hitSlop={8}
+              >
+                <Text style={styles.headerButtonText}>
+                  {snapState === "full" ? "⌄" : "⌃"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           {loading ? (
@@ -329,12 +421,33 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBorder,
     marginBottom: 12,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  headerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: Colors.card,
+    borderColor: Colors.cardBorder,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButtonText: {
+    color: Colors.textMuted,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   title: {
     color: Colors.text,
     fontSize: 16,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 8,
+    flex: 1,
   },
   loading: {
     paddingVertical: 40,
