@@ -90,6 +90,7 @@ const artists = [
 const songs = [
   {
     id: "seed-night-drive",
+    tags: ["夜ドライブ", "チル", "作業用"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-night-drive/600/600",
     artistId: "seed-taro-beats",
@@ -110,6 +111,7 @@ const songs = [
   },
   {
     id: "seed-sunset-walk",
+    tags: ["夕方", "散歩", "ポップス"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-sunset-walk/600/600",
     artistId: "seed-luna",
@@ -130,6 +132,7 @@ const songs = [
   },
   {
     id: "seed-starlight",
+    tags: ["星空", "ダンス", "夜に聴きたい"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-starlight/600/600",
     artistId: "seed-mio",
@@ -150,6 +153,7 @@ const songs = [
   },
   {
     id: "seed-color-loop",
+    tags: ["ループ", "カラフル", "作業用"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-color-loop/600/600",
     artistId: "seed-azuki",
@@ -170,6 +174,7 @@ const songs = [
   },
   {
     id: "seed-fading-echo",
+    tags: ["バンド", "エモ", "夜に聴きたい"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-fading-echo/600/600",
     artistId: "seed-kuro",
@@ -190,6 +195,7 @@ const songs = [
   },
   {
     id: "seed-new-dawn",
+    tags: ["朝", "ダンス", "前向き"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-new-dawn/600/600",
     artistId: "seed-beatlover",
@@ -210,6 +216,7 @@ const songs = [
   },
   {
     id: "seed-ocean-eyes",
+    tags: ["海", "チル", "旅"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-ocean-eyes/600/600",
     artistId: "seed-riku",
@@ -230,6 +237,7 @@ const songs = [
   },
   {
     id: "seed-midnight-city",
+    tags: ["夜", "シンセウェイヴ", "都会"],
     audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
     jacketUrl: "https://picsum.photos/seed/seed-midnight-city/600/600",
     artistId: "seed-neon-owl",

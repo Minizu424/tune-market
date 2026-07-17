@@ -21,6 +21,7 @@ export type CreateSongInput = {
   artistName: string;
   title: string;
   genre: string;
+  tags: string[];
   description: string;
   audioUrl: string;
   jacketUrl: string;
@@ -114,6 +115,7 @@ export async function createSong(input: CreateSongInput): Promise<string> {
     artistName: input.artistName,
     title: input.title,
     genre: input.genre,
+    tags: input.tags,
     description: input.description,
     audioUrl: input.audioUrl,
     jacketUrl: input.jacketUrl,
@@ -142,6 +144,7 @@ export async function updateSong(
       Song,
       | "title"
       | "genre"
+      | "tags"
       | "description"
       | "audioUrl"
       | "jacketUrl"
