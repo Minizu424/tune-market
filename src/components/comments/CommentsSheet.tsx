@@ -2,9 +2,11 @@ import { Timestamp, type QueryDocumentSnapshot } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
@@ -49,6 +51,47 @@ export function CommentsSheet({
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedForSongRef = useRef<string | null>(null);
+
+  // 下方向へのドラッグ（ハンドル部分）でシートを閉じる
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const dragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_event, gesture) => {
+        sheetTranslateY.setValue(Math.max(0, gesture.dy));
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        if (gesture.dy > 90 || gesture.vy > 0.8) {
+          // 十分に引き下げたら閉じる
+          Animated.timing(sheetTranslateY, {
+            toValue: 600,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => {
+            sheetTranslateY.setValue(0);
+            onCloseRef.current();
+          });
+        } else {
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            friction: 8,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(sheetTranslateY, {
+          toValue: 0,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      },
+    }),
+  ).current;
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -154,11 +197,15 @@ export function CommentsSheet({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>
-            コメント（{formatPoint(song.commentCount)}）
-          </Text>
+          <Animated.View
+            style={[styles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+          >
+          <View style={styles.dragArea} {...dragResponder.panHandlers}>
+            <View style={styles.handle} />
+            <Text style={styles.title}>
+              コメント（{formatPoint(song.commentCount)}）
+            </Text>
+          </View>
 
           {loading ? (
             <ActivityIndicator color={Colors.accent} style={styles.loading} />
@@ -217,7 +264,7 @@ export function CommentsSheet({
           ) : (
             <Text style={styles.loginNote}>コメントするにはログインしてください</Text>
           )}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -241,6 +288,10 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     maxHeight: "75%",
   },
+  dragArea: {
+    paddingTop: 2,
+    paddingBottom: 4,
+  },
   handle: {
     alignSelf: "center",
     width: 40,
@@ -254,7 +305,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   loading: {
     paddingVertical: 40,

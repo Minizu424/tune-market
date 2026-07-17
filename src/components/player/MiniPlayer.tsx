@@ -124,7 +124,8 @@ export function MiniPlayer() {
     >
       <Pressable
         style={styles.card}
-        onPress={() => router.push(`/songs/${currentSong.id}`)}
+        // タップでホームのリールに戻る（再生中の曲の位置から再開する）
+        onPress={() => router.navigate("/home")}
       >
         {currentSong.jacketUrl ? (
           <Image
