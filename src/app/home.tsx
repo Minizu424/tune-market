@@ -4,6 +4,8 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -15,6 +17,7 @@ import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { Colors } from "@/constants/colors";
+import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { formatPoint } from "@/lib/format";
 import { usePlayback } from "@/contexts/PlaybackContext";
@@ -40,6 +43,8 @@ export default function HomeScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  // ジャンルフィルター: タップで「含む」→「除外」→「解除」の3状態
+  const [genreFilter, setGenreFilter] = useState<Record<string, "include" | "exclude">>({});
 
   const playback = usePlayback();
   const { playQueue } = playback;
@@ -54,7 +59,36 @@ export default function HomeScreen() {
   // 自動スクロール（曲終了の自動送り）中の目的地。到着まで表示判定からの再生切替を止める
   const autoScrollTargetRef = useRef<number | null>(null);
 
-  itemsRef.current = items;
+  const filteredItems = useMemo(() => {
+    const included = GENRES.filter((g) => genreFilter[g] === "include");
+    const excluded = GENRES.filter((g) => genreFilter[g] === "exclude");
+    return items.filter(({ song }) => {
+      if (excluded.includes(song.genre as (typeof GENRES)[number])) {
+        return false;
+      }
+      if (included.length > 0) {
+        return included.includes(song.genre as (typeof GENRES)[number]);
+      }
+      return true;
+    });
+  }, [items, genreFilter]);
+  const hasGenreFilter = Object.keys(genreFilter).length > 0;
+
+  const cycleGenre = useCallback((genre: string) => {
+    setGenreFilter((prev) => {
+      const next = { ...prev };
+      if (!next[genre]) {
+        next[genre] = "include";
+      } else if (next[genre] === "include") {
+        next[genre] = "exclude";
+      } else {
+        delete next[genre];
+      }
+      return next;
+    });
+  }, []);
+
+  itemsRef.current = filteredItems;
   playQueueRef.current = playQueue;
   currentSongIdRef.current = playback.currentSong?.id ?? null;
 
@@ -182,7 +216,7 @@ export default function HomeScreen() {
     },
   ]);
 
-  const activeSong = items[activeIndex]?.song ?? null;
+  const activeSong = filteredItems[activeIndex]?.song ?? null;
 
   // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
   useEffect(() => {
@@ -193,14 +227,17 @@ export default function HomeScreen() {
   const stepReel = useCallback(
     (direction: number) => {
       const current = activeIndexRef.current;
-      const nextIndex = Math.max(0, Math.min(items.length - 1, current + direction));
+      const nextIndex = Math.max(
+        0,
+        Math.min(itemsRef.current.length - 1, current + direction),
+      );
       if (nextIndex === current) {
         return;
       }
       lastWheelAtRef.current = Date.now();
       listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     },
-    [items.length],
+    [],
   );
 
   // Web用のホイール操作: スクロールしたら即1曲送る。
@@ -245,11 +282,11 @@ export default function HomeScreen() {
 
   // 初回: キューを設定。すでに再生中の曲がリール内にあればそこから開始する
   useEffect(() => {
-    if (didInitRef.current || items.length === 0 || viewportHeight === 0) {
+    if (didInitRef.current || filteredItems.length === 0 || viewportHeight === 0) {
       return;
     }
     didInitRef.current = true;
-    const songs = items.map((item) => item.song);
+    const songs = filteredItems.map((item) => item.song);
     const playingIndex = songs.findIndex(
       (song) => song.id === playback.currentSong?.id,
     );
@@ -260,23 +297,23 @@ export default function HomeScreen() {
       listRef.current?.scrollToIndex({ index: startIndex, animated: false });
     }
     playQueue(songs, startIndex);
-  }, [items, viewportHeight, playQueue, playback.currentSong?.id]);
+  }, [filteredItems, viewportHeight, playQueue, playback.currentSong?.id]);
 
-  // 楽曲リストが更新されたら、再生中の曲を保ったままキューを差し替える
+  // 楽曲リストやフィルターが変わったら、再生中の曲を保ったままキューを差し替える
   useEffect(() => {
-    if (!didInitRef.current || items.length === 0) {
+    if (!didInitRef.current || filteredItems.length === 0) {
       return;
     }
-    const songs = items.map((item) => item.song);
+    const songs = filteredItems.map((item) => item.song);
     const playingIndex = songs.findIndex(
       (song) => song.id === currentSongIdRef.current,
     );
     const index =
       playingIndex >= 0
         ? playingIndex
-        : Math.min(activeIndexRef.current, songs.length - 1);
+        : Math.min(Math.max(activeIndexRef.current, 0), songs.length - 1);
     playQueue(songs, index);
-  }, [items, playQueue]);
+  }, [filteredItems, playQueue]);
 
   // 曲が最後まで再生されて自動で次に進んだら、リールも追従してスクロールする
   useEffect(() => {
@@ -284,12 +321,16 @@ export default function HomeScreen() {
       return;
     }
     const index = playback.currentIndex;
-    if (index >= 0 && index < items.length && index !== activeIndexRef.current) {
+    if (
+      index >= 0 &&
+      index < filteredItems.length &&
+      index !== activeIndexRef.current
+    ) {
       setActiveIndex(index);
       autoScrollTargetRef.current = index;
       listRef.current?.scrollToIndex({ index, animated: true });
     }
-  }, [playback.currentIndex, items.length]);
+  }, [playback.currentIndex, filteredItems.length]);
 
 
   const handleCompleted = useCallback(() => {
@@ -324,23 +365,25 @@ export default function HomeScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={Colors.accent} />
         </View>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyText}>
-            まだ楽曲がありません。{"\n"}シードスクリプトでテスト楽曲を投入してください。
+            {hasGenreFilter
+              ? "このジャンル条件に合う楽曲がありません。\nフィルターを変更してみてください。"
+              : "まだ楽曲がありません。\nシードスクリプトでテスト楽曲を投入してください。"}
           </Text>
         </View>
       ) : (
         <FlatList
           ref={listRef}
-          data={items}
+          data={filteredItems}
           keyExtractor={keyExtractor}
           renderItem={({ item, index }) => (
             <ReelCard
               song={item.song}
               height={viewportHeight}
               isActive={index === activeIndex}
-              weeklyRank={index + 1}
+              weeklyRank={hasGenreFilter ? undefined : index + 1}
               isLiked={likedIds.has(item.song.id)}
               onPressLike={() => handleToggleLike(item.song.id)}
               onPressComments={() => setModal("comments")}
@@ -371,6 +414,48 @@ export default function HomeScreen() {
         <Text style={styles.headerPoint}>
           {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
         </Text>
+      </View>
+
+      <View style={styles.genreBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.genreBarContent}
+        >
+          {hasGenreFilter && (
+            <Pressable style={styles.genreChip} onPress={() => setGenreFilter({})}>
+              <Text style={styles.genreChipText}>リセット</Text>
+            </Pressable>
+          )}
+          {GENRES.map((genre) => {
+            const mode = genreFilter[genre];
+            return (
+              <Pressable
+                key={genre}
+                style={[
+                  styles.genreChip,
+                  mode === "include" && styles.genreChipInclude,
+                  mode === "exclude" && styles.genreChipExclude,
+                ]}
+                onPress={() => cycleGenre(genre)}
+              >
+                <Text
+                  style={[
+                    styles.genreChipText,
+                    mode != null && styles.genreChipTextActive,
+                  ]}
+                >
+                  {mode === "exclude" ? `✕ ${genre}` : genre}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        {hasGenreFilter && (
+          <Text style={styles.genreHint}>
+            紫=このジャンルを再生 / 赤=除外（タップで切替）
+          </Text>
+        )}
       </View>
 
       {activeSong && (
@@ -464,5 +549,47 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowRadius: 6,
+  },
+  genreBar: {
+    position: "absolute",
+    top: 92,
+    left: 0,
+    right: 0,
+  },
+  genreBarContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  genreChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.45)",
+    backgroundColor: "rgba(2, 6, 23, 0.55)",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+  },
+  genreChipInclude: {
+    backgroundColor: "rgba(139, 92, 246, 0.9)",
+    borderColor: Colors.accent,
+  },
+  genreChipExclude: {
+    backgroundColor: "rgba(248, 113, 113, 0.85)",
+    borderColor: Colors.down,
+  },
+  genreChipText: {
+    color: Colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  genreChipTextActive: {
+    color: "#FFFFFF",
+  },
+  genreHint: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 10,
+    paddingHorizontal: 16,
+    marginTop: 6,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 4,
   },
 });
