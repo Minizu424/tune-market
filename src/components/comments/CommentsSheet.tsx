@@ -60,6 +60,8 @@ export function CommentsSheet({
   const HALF_HEIGHT = Math.round(windowHeight * 0.55);
 
   const sheetHeight = useRef(new Animated.Value(HALF_HEIGHT)).current;
+  // ドラッグ中は高さを変えず transform だけ動かす（再レイアウトを避けてラグをなくす）
+  const sheetTranslate = useRef(new Animated.Value(0)).current;
   const heightRef = useRef(HALF_HEIGHT); // 現在のスナップ高さ
   const snapSizesRef = useRef({ full: FULL_HEIGHT, half: HALF_HEIGHT });
   snapSizesRef.current = { full: FULL_HEIGHT, half: HALF_HEIGHT };
@@ -71,18 +73,27 @@ export function CommentsSheet({
   const animateTo = (target: number, after?: () => void) => {
     heightRef.current = target;
     setSnapState(target >= snapSizesRef.current.full ? "full" : "half");
-    Animated.spring(sheetHeight, {
-      toValue: target,
-      friction: 10,
-      tension: 120,
-      useNativeDriver: false,
-    }).start(after);
+    Animated.parallel([
+      Animated.spring(sheetHeight, {
+        toValue: target,
+        friction: 10,
+        tension: 120,
+        useNativeDriver: false,
+      }),
+      Animated.spring(sheetTranslate, {
+        toValue: 0,
+        friction: 10,
+        tension: 120,
+        useNativeDriver: false,
+      }),
+    ]).start(after);
   };
 
   const closeSheet = () => {
     // Modalのスライドアウトに任せる（二重アニメーションによるラグを避ける）
     heightRef.current = snapSizesRef.current.half;
     sheetHeight.setValue(snapSizesRef.current.half);
+    sheetTranslate.setValue(0);
     setSnapState("half");
     onCloseRef.current();
   };
@@ -106,7 +117,8 @@ export function CommentsSheet({
       onPanResponderMove: (_event, gesture) => {
         const { full } = snapSizesRef.current;
         const next = Math.max(80, Math.min(full, heightRef.current - gesture.dy));
-        sheetHeight.setValue(next);
+        // 高さは触らず、ずれぶんだけ transform で動かす（軽い）
+        sheetTranslate.setValue(heightRef.current - next);
       },
       onPanResponderRelease: (_event, gesture) => {
         settleAt(heightRef.current - gesture.dy, gesture.vy);
@@ -122,9 +134,10 @@ export function CommentsSheet({
     if (visible) {
       heightRef.current = HALF_HEIGHT;
       sheetHeight.setValue(HALF_HEIGHT);
+      sheetTranslate.setValue(0);
       setSnapState("half");
     }
-  }, [visible, HALF_HEIGHT, sheetHeight]);
+  }, [visible, HALF_HEIGHT, sheetHeight, sheetTranslate]);
 
   // Web用ドラッグ: DOMのポインターイベントで直接動かす
   const dragAreaRef = useRef<View>(null);
@@ -161,7 +174,7 @@ export function CommentsSheet({
       );
       drag.last = next;
       drag.lastAt = Date.now();
-      sheetHeight.setValue(next);
+      sheetTranslate.setValue(heightRef.current - next);
     };
     const onUp = () => {
       if (!drag) {
@@ -285,7 +298,15 @@ export function CommentsSheet({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Animated.View style={[styles.sheet, { height: sheetHeight }]}>
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                height: sheetHeight,
+                transform: [{ translateY: sheetTranslate }],
+              },
+            ]}
+          >
           <View
             ref={dragAreaRef}
             style={styles.dragArea}
