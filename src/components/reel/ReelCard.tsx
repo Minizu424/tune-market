@@ -13,6 +13,9 @@ type ReelCardProps = {
   isActive: boolean;
   weeklyRank?: number;
   isLiked: boolean;
+  /** タグごとのフィルター状態（含む/除外） */
+  tagStates?: Record<string, "include" | "exclude">;
+  onPressTag?: (tag: string) => void;
   onPressLike: () => void;
   onPressComments: () => void;
   onPressBuy: () => void;
@@ -29,6 +32,8 @@ export function ReelCard({
   isActive,
   weeklyRank,
   isLiked,
+  tagStates,
+  onPressTag,
   onPressLike,
   onPressComments,
   onPressBuy,
@@ -109,9 +114,26 @@ export function ReelCard({
         </Text>
 
         {song.tags && song.tags.length > 0 && (
-          <Text style={styles.tags} numberOfLines={1}>
-            {song.tags.map((tag) => `#${tag}`).join("  ")}
-          </Text>
+          <View style={styles.tagRow}>
+            {song.tags.map((tag) => {
+              const mode = tagStates?.[tag];
+              return (
+                <Pressable
+                  key={tag}
+                  style={[
+                    styles.tagChip,
+                    mode === "include" && styles.tagChipInclude,
+                    mode === "exclude" && styles.tagChipExclude,
+                  ]}
+                  onPress={() => onPressTag?.(tag)}
+                >
+                  <Text style={styles.tagChipText}>
+                    {mode === "exclude" ? `✕ #${tag}` : `#${tag}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         )}
 
         <View style={styles.priceRow}>
@@ -249,11 +271,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 4,
   },
-  tags: {
+  tagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 8,
+  },
+  tagChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(167, 139, 250, 0.5)",
+    backgroundColor: "rgba(2, 6, 23, 0.45)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  tagChipInclude: {
+    backgroundColor: "rgba(139, 92, 246, 0.9)",
+    borderColor: Colors.accent,
+  },
+  tagChipExclude: {
+    backgroundColor: "rgba(248, 113, 113, 0.85)",
+    borderColor: Colors.down,
+  },
+  tagChipText: {
     color: Colors.accentSoft,
     fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 8,
+    fontWeight: "700",
   },
   priceRow: {
     flexDirection: "row",

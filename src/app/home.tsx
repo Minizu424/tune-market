@@ -60,20 +60,6 @@ export default function HomeScreen() {
   // 自動スクロール（曲終了の自動送り）中の目的地。到着まで表示判定からの再生切替を止める
   const autoScrollTargetRef = useRef<number | null>(null);
 
-  // 読み込んだ楽曲に付いているタグの一覧（使用数順）
-  const availableTags = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const { song } of items) {
-      for (const tag of song.tags ?? []) {
-        counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      }
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([tag]) => tag)
-      .slice(0, 12);
-  }, [items]);
-
   const filteredItems = useMemo(() => {
     const includedGenres = GENRES.filter((g) => genreFilter[g] === "include");
     const excludedGenres = GENRES.filter((g) => genreFilter[g] === "exclude");
@@ -421,6 +407,8 @@ export default function HomeScreen() {
               isActive={index === activeIndex}
               weeklyRank={hasGenreFilter ? undefined : index + 1}
               isLiked={likedIds.has(item.song.id)}
+              tagStates={tagFilter}
+              onPressTag={cycleTag}
               onPressLike={() => handleToggleLike(item.song.id)}
               onPressComments={() => setModal("comments")}
               onPressBuy={() => setModal("buy")}
@@ -494,13 +482,13 @@ export default function HomeScreen() {
           })}
         </ScrollView>
 
-        {availableTags.length > 0 && (
+        {Object.keys(tagFilter).length > 0 && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={[styles.genreBarContent, styles.tagBarContent]}
           >
-            {availableTags.map((tag) => {
+            {Object.keys(tagFilter).map((tag) => {
               const mode = tagFilter[tag];
               return (
                 <Pressable
@@ -513,10 +501,7 @@ export default function HomeScreen() {
                   onPress={() => cycleTag(tag)}
                 >
                   <Text
-                    style={[
-                      styles.genreChipText,
-                      mode != null && styles.genreChipTextActive,
-                    ]}
+                    style={[styles.genreChipText, styles.genreChipTextActive]}
                   >
                     {mode === "exclude" ? `✕ #${tag}` : `#${tag}`}
                   </Text>
@@ -528,7 +513,7 @@ export default function HomeScreen() {
 
         {hasGenreFilter && (
           <Text style={styles.genreHint}>
-            紫=これを再生 / 赤=除外（タップで切替）
+            曲の#タグをタップ: 紫=これを再生 / 赤=除外 / もう一度で解除
           </Text>
         )}
       </View>
