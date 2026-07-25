@@ -33,6 +33,7 @@ export function SellStockModal({
   const [quantityText, setQuantityText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [priceMove, setPriceMove] = useState<string | null>(null);
 
   const quantity = Number(quantityText);
   const isValid = Number.isFinite(quantity) && quantity > 0;
@@ -55,13 +56,19 @@ export function SellStockModal({
 
     setSubmitting(true);
     setMessage(null);
+    setPriceMove(null);
     try {
       const result = await sellSongStock({
         userId,
         songId: song.id,
         quantity,
       });
+      const changeRate =
+        ((result.newPrice - result.beforePrice) / result.beforePrice) * 100;
       setMessage(`${formatQuantity(quantity)}を売却し、${formatPoint(result.proceeds)}ptを受け取りました。`);
+      setPriceMove(
+        `株価 ${formatPoint(result.beforePrice)}pt → ${formatPoint(result.newPrice)}pt（${changeRate.toFixed(1)}%）`,
+      );
       onCompleted();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "売却に失敗しました。");
@@ -114,6 +121,7 @@ export function SellStockModal({
         )}
 
         {message && <Text style={styles.message}>{message}</Text>}
+        {priceMove && <Text style={styles.priceMove}>{priceMove}</Text>}
 
         <AppButton
           title={submitting ? "処理中..." : "売却する"}
@@ -134,10 +142,10 @@ export function SellStockModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(27, 26, 24, 0.35)",
   },
   sheet: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -192,6 +200,12 @@ const styles = StyleSheet.create({
   preview: {
     color: Colors.textMuted,
     fontSize: 12,
+    marginBottom: 8,
+  },
+  priceMove: {
+    color: Colors.down,
+    fontSize: 15,
+    fontWeight: "800",
     marginBottom: 8,
   },
   message: {

@@ -9,7 +9,6 @@ import {
 } from "react-native";
 
 import { BottomNav } from "@/components/navigation/BottomNav";
-import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
 
 type ScreenProps = {
   title?: string;
@@ -28,9 +27,6 @@ export function Screen({
   scroll = true,
   contentStyle,
 }: ScreenProps) {
-  // 下タブのある画面は横スワイプでも隣のタブへ移動できる
-  const swipeHandlers = useSwipeTabs();
-
   const content = (
     <View style={[styles.content, showBottomNav && styles.withBottomNav, contentStyle]}>
       {title && <Text style={styles.title}>{title}</Text>}
@@ -40,7 +36,7 @@ export function Screen({
   );
 
   return (
-    <View style={styles.root} {...(showBottomNav ? swipeHandlers : {})}>
+    <View style={styles.root}>
       {scroll ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {content}
