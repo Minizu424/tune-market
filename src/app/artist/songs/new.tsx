@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   genreTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
   },
   progressPresets: {
     flexDirection: "row",
@@ -319,8 +319,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   warnBanner: {
-    backgroundColor: "rgba(245, 158, 11, 0.12)",
-    borderColor: "#F59E0B",
+    backgroundColor: "#FAEEDA",
+    borderColor: "#EF9F27",
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
@@ -328,12 +328,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   warnBannerText: {
-    color: "#FCD34D",
+    color: "#633806",
     fontSize: 13,
     lineHeight: 19,
   },
   errorBanner: {
-    backgroundColor: "rgba(248, 113, 113, 0.12)",
+    backgroundColor: "#FCEBEB",
     borderColor: Colors.down,
     borderWidth: 1,
     borderRadius: 12,

@@ -13,10 +13,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { AudioPlayer } from "expo-audio";
 import { addSongPlaySeconds, registerSongPlay } from "@/services/recordSongPlay";
 import type { Song } from "@/types";
 
 type PlaybackContextValue = {
+  /** シークバーなどが直接ステータス購読するためのplayer本体 */
+  player: AudioPlayer;
   queue: Song[];
   currentIndex: number;
   currentSong: Song | null;
@@ -40,7 +43,8 @@ const PlaybackContext = createContext<PlaybackContextValue | null>(null);
  * 再生数・再生時間の記録（株価の指標）もここで行う。
  */
 export function PlaybackProvider({ children }: { children: ReactNode }) {
-  const player = useAudioPlayer();
+  // updateInterval短めでシークバーの動きを滑らかにする
+  const player = useAudioPlayer(null, { updateInterval: 150 });
   const status = useAudioPlayerStatus(player);
 
   const [queue, setQueue] = useState<Song[]>([]);
@@ -58,8 +62,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const finishHandledRef = useRef(false);
 
   useEffect(() => {
-    // iOSのサイレントモードでも再生できるようにする
-    setAudioModeAsync({ playsInSilentMode: true }).catch(console.error);
+    // サイレントモードでの再生 + バックグラウンド再生を有効にする
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      interruptionMode: "doNotMix",
+    }).catch(console.error);
   }, []);
 
   const currentSong =
@@ -215,6 +223,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
+      player,
       queue,
       currentIndex,
       currentSong,
@@ -224,7 +233,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       toggle,
       stop,
     }),
-    [queue, currentIndex, currentSong, status.playing, playQueue, playSingle, toggle, stop],
+    [player, queue, currentIndex, currentSong, status.playing, playQueue, playSingle, toggle, stop],
   );
 
   return (

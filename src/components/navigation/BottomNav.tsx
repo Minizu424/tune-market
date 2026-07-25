@@ -1,5 +1,6 @@
 import { router, usePathname, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Colors } from "@/constants/colors";
 
 type NavItem = {
   label: string;
@@ -65,10 +66,10 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 16,
-    backgroundColor: "#111827",
+    backgroundColor: Colors.card,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: Colors.cardBorder,
     padding: 6,
     flexDirection: "row",
     justifyContent: "space-between",
@@ -80,14 +81,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   activeItem: {
-    backgroundColor: "#7C3AED",
+    backgroundColor: Colors.accent,
   },
   label: {
-    color: "#94A3B8",
+    color: Colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
   },
   activeLabel: {
-    color: "#FFFFFF",
+    color: Colors.onAccent,
   },
 });

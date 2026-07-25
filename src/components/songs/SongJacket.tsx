@@ -6,33 +6,40 @@ type SongJacketProps = {
   jacketUrl?: string;
   title: string;
   size?: number;
+  /** 幅いっぱいの正方形にする（タイル表示用） */
+  fill?: boolean;
 };
 
-const JACKET_COLORS = ["#7C3AED", "#2563EB", "#0D9488", "#DB2777", "#D97706", "#4F46E5"];
+// 音源にジャケットが無いときの代替色。写真の代わりなので彩度は保ちつつ、
+// 白文字が載る前提でやや濃いめに揃えてある。
+const JACKET_COLORS = ["#5B4BD4", "#1F6FD0", "#0E7C68", "#C13C74", "#B0730A", "#4338A8"];
 
-export function SongJacket({ jacketUrl, title, size = 52 }: SongJacketProps) {
-  const radius = Math.max(10, size * 0.22);
+export function SongJacket({
+  jacketUrl,
+  title,
+  size = 52,
+  fill = false,
+}: SongJacketProps) {
+  const radius = fill ? 12 : Math.max(10, size * 0.22);
+  const box = fill
+    ? { width: "100%" as const, aspectRatio: 1, borderRadius: radius }
+    : { width: size, height: size, borderRadius: radius };
 
   if (jacketUrl) {
     return (
-      <Image
-        source={{ uri: jacketUrl }}
-        style={{ width: size, height: size, borderRadius: radius }}
-        contentFit="cover"
-      />
+      <Image source={{ uri: jacketUrl }} style={box} contentFit="cover" />
     );
   }
 
   const color = JACKET_COLORS[Math.abs(hashCode(title)) % JACKET_COLORS.length];
 
   return (
-    <View
-      style={[
-        styles.placeholder,
-        { width: size, height: size, borderRadius: radius, backgroundColor: color },
-      ]}
-    >
-      <Text style={[styles.placeholderText, { fontSize: size * 0.4 }]}>♪</Text>
+    <View style={[styles.placeholder, box, { backgroundColor: color }]}>
+      <Text
+        style={[styles.placeholderText, { fontSize: fill ? 44 : size * 0.4 }]}
+      >
+        ♪
+      </Text>
     </View>
   );
 }
@@ -52,7 +59,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   placeholderText: {
-    color: "rgba(255,255,255,0.9)",
+    color: "rgba(255,255,255,0.92)",
     fontWeight: "800",
   },
 });

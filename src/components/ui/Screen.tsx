@@ -9,6 +9,9 @@ import {
 } from "react-native";
 
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
+import { CONTENT_MAX_WIDTH } from "@/hooks/use-layout";
+import { Colors } from "@/constants/colors";
 
 type ScreenProps = {
   title?: string;
@@ -17,6 +20,11 @@ type ScreenProps = {
   showBottomNav?: boolean;
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * 中身の最大幅。既定は読みやすさ優先の1カラム幅。
+   * 一覧をタイルで並べる画面は GRID_MAX_WIDTH を渡して広げる。
+   */
+  maxWidth?: number;
 };
 
 export function Screen({
@@ -26,9 +34,20 @@ export function Screen({
   showBottomNav = false,
   scroll = true,
   contentStyle,
+  maxWidth = CONTENT_MAX_WIDTH,
 }: ScreenProps) {
+  // 下タブのある画面は横スワイプでも隣のタブへ移動できる
+  const swipeHandlers = useSwipeTabs();
+
   const content = (
-    <View style={[styles.content, showBottomNav && styles.withBottomNav, contentStyle]}>
+    <View
+      style={[
+        styles.content,
+        { maxWidth },
+        showBottomNav && styles.withBottomNav,
+        contentStyle,
+      ]}
+    >
       {title && <Text style={styles.title}>{title}</Text>}
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       {children}
@@ -36,7 +55,7 @@ export function Screen({
   );
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} {...(showBottomNav ? swipeHandlers : {})}>
       {scroll ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {content}
@@ -53,13 +72,16 @@ export function Screen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#061226",
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
   },
   content: {
     flex: 1,
+    width: "100%",
+    // 画面が広いときは中央に寄せる。Web で行が横に伸びきるのを防ぐ。
+    alignSelf: "center",
     paddingHorizontal: 20,
     paddingTop: 56,
     paddingBottom: 32,
@@ -68,13 +90,13 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
   title: {
-    color: "#FFFFFF",
+    color: Colors.text,
     fontSize: 28,
     fontWeight: "800",
     marginBottom: 8,
   },
   subtitle: {
-    color: "#94A3B8",
+    color: Colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 24,

@@ -13,6 +13,7 @@ import { SongListItem } from "@/components/songs/SongListItem";
 import { Screen } from "@/components/ui/Screen";
 import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
+import { GRID_MAX_WIDTH, useLayout } from "@/hooks/use-layout";
 import { getSongs } from "@/repositories/songsRepository";
 import type { Song } from "@/types";
 
@@ -20,6 +21,7 @@ const TABS = ["すべて", ...GENRES.slice(0, 4)];
 
 export default function SongsScreen() {
   const params = useLocalSearchParams<{ genre?: string }>();
+  const { isWide, columns } = useLayout();
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
@@ -55,6 +57,7 @@ export default function SongsScreen() {
       title="楽曲一覧"
       subtitle="気になる楽曲を探して、詳細を確認しよう。"
       showBottomNav
+      maxWidth={GRID_MAX_WIDTH}
     >
       <TextInput
         style={styles.search}
@@ -88,6 +91,18 @@ export default function SongsScreen() {
       ) : filtered.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>該当する楽曲がありません</Text>
+        </View>
+      ) : isWide ? (
+        // 画面が広いときはタイルで並べる。1行が横に伸びきるのを防ぐ。
+        <View style={styles.grid}>
+          {filtered.map((song) => (
+            <View
+              key={song.id}
+              style={[styles.gridCell, { width: `${100 / columns}%` }]}
+            >
+              <SongListItem song={song} variant="tile" />
+            </View>
+          ))}
         </View>
       ) : (
         filtered.map((song) => <SongListItem key={song.id} song={song} />)
@@ -131,7 +146,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   tabTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -6,
+  },
+  gridCell: {
+    paddingHorizontal: 6,
+    marginBottom: 12,
   },
   loading: {
     marginTop: 32,

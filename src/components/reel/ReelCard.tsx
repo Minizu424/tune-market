@@ -1,8 +1,9 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { Colors } from "@/constants/colors";
+import { OverlayColors as Colors } from "@/constants/colors";
 import { formatPoint, formatRate } from "@/lib/format";
 import { calculatePriceChangeRate } from "@/repositories/songsRepository";
 import type { Song } from "@/types";
@@ -13,6 +14,10 @@ type ReelCardProps = {
   isActive: boolean;
   weeklyRank?: number;
   isLiked: boolean;
+  /** アクティブなリールが一時停止中か（▶アイコン表示用） */
+  isPaused?: boolean;
+  /** 背景タップで再生/一時停止を切り替える */
+  onTogglePlay?: () => void;
   /** タグごとのフィルター状態（含む/除外） */
   tagStates?: Record<string, "include" | "exclude">;
   onPressTag?: (tag: string) => void;
@@ -32,6 +37,8 @@ export function ReelCard({
   isActive,
   weeklyRank,
   isLiked,
+  isPaused,
+  onTogglePlay,
   tagStates,
   onPressTag,
   onPressLike,
@@ -39,6 +46,28 @@ export function ReelCard({
   onPressBuy,
   onPressSupport,
 }: ReelCardProps) {
+  const lastTapRef = useRef(0);
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // シングルタップ=再生/停止、ダブルタップ=いいね（TikTok風）
+  const handleBackgroundTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 260) {
+      lastTapRef.current = 0;
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      onPressLike();
+      return;
+    }
+    lastTapRef.current = now;
+    singleTapTimerRef.current = setTimeout(() => {
+      singleTapTimerRef.current = null;
+      onTogglePlay?.();
+    }, 260);
+  };
+
   const changeRate = calculatePriceChangeRate(song);
   const changeColor =
     changeRate > 0 ? Colors.up : changeRate < 0 ? Colors.down : Colors.textMuted;
@@ -57,6 +86,17 @@ export function ReelCard({
       )}
       <View style={[StyleSheet.absoluteFill, styles.dim]} />
       <View style={styles.bottomShade} />
+
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={handleBackgroundTap}
+      />
+
+      {isActive && isPaused && (
+        <View style={styles.pausedOverlay} pointerEvents="none">
+          <Text style={styles.pausedIcon}>▶</Text>
+        </View>
+      )}
 
       {weeklyRank != null && weeklyRank <= 3 && (
         <View style={styles.rankBadge}>
@@ -170,6 +210,17 @@ const styles = StyleSheet.create({
   },
   dim: {
     backgroundColor: "rgba(2, 6, 23, 0.35)",
+  },
+  pausedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pausedIcon: {
+    fontSize: 64,
+    color: "rgba(255,255,255,0.85)",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 12,
   },
   bottomShade: {
     position: "absolute",

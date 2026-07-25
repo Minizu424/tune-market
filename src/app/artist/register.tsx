@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   genreTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
   },
   submit: {
     marginTop: 24,

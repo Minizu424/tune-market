@@ -81,7 +81,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="メールアドレス"
-          placeholderTextColor="#888"
+          placeholderTextColor={Colors.textFaint}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -91,7 +91,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="パスワード"
-          placeholderTextColor="#888"
+          placeholderTextColor={Colors.textFaint}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -127,19 +127,19 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#10111f",
+    backgroundColor: Colors.background,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
   title: {
-    color: "#ffffff",
+    color: Colors.text,
     fontSize: 36,
     fontWeight: "800",
     marginBottom: 8,
   },
   subtitle: {
-    color: "#b6b7c8",
+    color: Colors.textMuted,
     fontSize: 14,
     marginBottom: 32,
   },
@@ -148,34 +148,36 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   input: {
-    backgroundColor: "#1b1d32",
-    color: "#ffffff",
+    backgroundColor: Colors.input,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
   },
   primaryButton: {
-    backgroundColor: "#7c5cff",
+    backgroundColor: Colors.accent,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 8,
   },
   primaryButtonText: {
-    color: "#ffffff",
+    color: Colors.onAccent,
     fontWeight: "700",
     fontSize: 16,
   },
   secondaryButton: {
-    borderColor: "#7c5cff",
+    borderColor: Colors.accent,
     borderWidth: 1,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
   },
   secondaryButtonText: {
-    color: "#c9c2ff",
+    color: Colors.accentSoft,
     fontWeight: "700",
     fontSize: 16,
   },
@@ -183,7 +185,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   disclaimer: {
-    color: "#64748B",
+    color: Colors.textFaint,
     fontSize: 11,
     textAlign: "center",
     marginTop: 28,
