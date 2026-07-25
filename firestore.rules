@@ -31,6 +31,20 @@ service cloud.firestore {
         allow read: if true;
         allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
       }
+
+      // 株主投票。集計は options 配列に持たせているため、投票時に poll 本体を更新する。
+      // 本来は「アーティスト本人だけが作成できる」「集計はサーバーだけが書ける」にすべきだが、
+      // MVP では songs と同じく署名済みユーザーに許可する（Cloud Functions 移行時に締める）。
+      match /polls/{pollId} {
+        allow read: if true;
+        allow create, update: if signedIn();
+
+        // 投票用紙。ドキュメントIDをユーザーIDにしているので本人しか書けない。
+        match /ballots/{ballotUserId} {
+          allow read: if signedIn();
+          allow create, update: if signedIn() && request.auth.uid == ballotUserId;
+        }
+      }
     }
 
     match /holdings/{holdingId} {

@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { CommentsSheet } from "@/components/comments/CommentsSheet";
+import { PollCard } from "@/components/poll/PollCard";
 import { SongJacket } from "@/components/songs/SongJacket";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
@@ -181,6 +182,12 @@ export default function SongDetailScreen() {
         <Text style={styles.cardTitle}>価格チャート</Text>
         <PriceChart prices={prices} />
       </AppCard>
+
+      <PollCard
+        songId={song.id}
+        userId={firebaseUser?.uid ?? null}
+        holdingQuantity={holdingQuantity}
+      />
 
       <AppCard style={styles.card}>
         <Text style={styles.cardTitle}>制作進捗</Text>
@@ -403,7 +410,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   supportButton: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: Colors.gold,
   },
   emptyText: {
     color: Colors.textFaint,
@@ -424,8 +431,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   likeButtonActive: {
-    borderColor: "#EC4899",
-    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    borderColor: "#C13C74",
+    backgroundColor: "rgba(193, 60, 116, 0.10)",
   },
   likeButtonText: {
     color: Colors.text,
