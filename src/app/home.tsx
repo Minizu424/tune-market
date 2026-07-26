@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type ViewToken,
 } from "react-native";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -19,10 +20,13 @@ import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
 import { StatusBar } from "expo-status-bar";
-import { useLayout } from "@/hooks/use-layout";
-import { OverlayColors as Colors } from "@/constants/colors";
+import { Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import {
+  neighborAudioUrls,
+  useAudioPrefetch,
+} from "@/hooks/use-audio-prefetch";
 import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
 import { formatPoint } from "@/lib/format";
 import { usePlayback } from "@/contexts/PlaybackContext";
@@ -40,13 +44,23 @@ type ModalKind = "buy" | "support" | "comments" | null;
  * 縦スクロール（1画面1曲）で楽曲を切り替える。
  * 並び順は週間応援ランキング順（ランキング上位曲がホームに出る）。
  */
+/**
+ * 最後に見ていたリールの曲ID。
+ * 他タブへ移動するとこの画面はアンマウントされるため、モジュール変数に逃がして
+ * 戻ってきたときに同じ位置から再開できるようにする。
+ */
+let lastViewedSongId: string | null = null;
+
 export default function HomeScreen() {
   const { profile, refreshProfile } = useAuthUser();
-  const { isWide } = useLayout();
   const [items, setItems] = useState<WeeklyRankingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const { height: windowHeight } = useWindowDimensions();
+  // ヘッダー・ジャンルバー・シークバー・下タブぶんを引いた概算
+  const fallbackHeight = Math.max(360, windowHeight - 270);
+  const viewportHeight = measuredHeight > 0 ? measuredHeight : fallbackHeight;
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
@@ -67,6 +81,9 @@ export default function HomeScreen() {
   const currentSongIdRef = useRef<string | null>(null);
   // 自動スクロール（曲終了の自動送り）中の目的地。到着まで表示判定からの再生切替を止める
   const autoScrollTargetRef = useRef<number | null>(null);
+  // 自動スクロールのガードが解除されないまま残ると、以降ユーザーが
+  // スクロールしても曲が切り替わらなくなるため、期限を持たせる
+  const autoScrollDeadlineRef = useRef(0);
 
   const filteredItems = useMemo(() => {
     const includedGenres = GENRES.filter((g) => genreFilter[g] === "include");
@@ -119,6 +136,9 @@ export default function HomeScreen() {
   const cycleTag = useMemo(() => cycleFilter(setTagFilter), [cycleFilter]);
 
   itemsRef.current = filteredItems;
+  // effect で更新すると1描画ぶん古い値が残り、「自動送り中」と誤判定して
+  // ユーザーのスクロールで曲が切り替わらなくなる。描画時に同期で更新する。
+  activeIndexRef.current = activeIndex;
   playQueueRef.current = playQueue;
   currentSongIdRef.current = playback.currentSong?.id ?? null;
 
@@ -222,12 +242,18 @@ export default function HomeScreen() {
       setActiveIndex(index);
 
       // 自動スクロール中（曲終了の自動送りなど）は、途中経過のリールで
-      // 再生を切り替えない。目的地に到着したら解除する。
-      if (autoScrollTargetRef.current !== null) {
-        if (index === autoScrollTargetRef.current) {
+      // 再生を切り替えない。目的地に到着するか、期限を過ぎたら解除する。
+      const target = autoScrollTargetRef.current;
+      if (target !== null) {
+        if (index === target) {
           autoScrollTargetRef.current = null;
+          return;
         }
-        return;
+        if (Date.now() < autoScrollDeadlineRef.current) {
+          return;
+        }
+        // 期限切れ。目的地に着かなかったので、ユーザー操作として扱う
+        autoScrollTargetRef.current = null;
       }
 
       // ユーザーのスクロールによる切り替え
@@ -248,11 +274,6 @@ export default function HomeScreen() {
 
   const activeSong = filteredItems[activeIndex]?.song ?? null;
 
-  // Webはページスナップが効かないため、ホイール1回につき1曲だけ送る
-  useEffect(() => {
-    activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
-
   // 1曲ぶんリールを送る（最新のactiveIndexを参照するためref経由）
   const stepReel = useCallback(
     (direction: number) => {
@@ -264,6 +285,8 @@ export default function HomeScreen() {
       if (nextIndex === current) {
         return;
       }
+      // ユーザー操作なので自動送りのガードは解除する
+      autoScrollTargetRef.current = null;
       lastWheelAtRef.current = Date.now();
       listRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     },
@@ -318,12 +341,14 @@ export default function HomeScreen() {
     didInitRef.current = true;
     const songs = filteredItems.map((item) => item.song);
     const playingIndex = songs.findIndex(
-      (song) => song.id === playback.currentSong?.id,
+      (song) => song.id === (playback.currentSong?.id ?? lastViewedSongId),
     );
     const startIndex = playingIndex >= 0 ? playingIndex : 0;
     setActiveIndex(startIndex);
-    autoScrollTargetRef.current = startIndex;
     if (startIndex > 0) {
+      // スクロールを伴うときだけガードを張る（先頭表示なら不要）
+      autoScrollTargetRef.current = startIndex;
+      autoScrollDeadlineRef.current = Date.now() + 1500;
       listRef.current?.scrollToIndex({ index: startIndex, animated: false });
     }
     playQueue(songs, startIndex);
@@ -358,6 +383,7 @@ export default function HomeScreen() {
     ) {
       setActiveIndex(index);
       autoScrollTargetRef.current = index;
+      autoScrollDeadlineRef.current = Date.now() + 1500;
       listRef.current?.scrollToIndex({ index, animated: true });
     }
   }, [playback.currentIndex, filteredItems.length]);
@@ -386,6 +412,39 @@ export default function HomeScreen() {
     [],
   );
 
+  // 復帰位置。再生中の曲 → 最後に見ていた曲 → 先頭、の順で探す。
+  // 一度決めたら固定して、スクロール中に飛ばされないようにする。
+  // 表示中の曲の前後2曲ぶんの音源を先読みして、スクロール直後の待ちをなくす
+  const prefetchUrls = useMemo(
+    () =>
+      neighborAudioUrls(filteredItems, activeIndex, (item) => item.song.audioUrl),
+    [filteredItems, activeIndex],
+  );
+  useAudioPrefetch(prefetchUrls);
+
+  // 表示中の曲を控えておき、他タブから戻ったときの復帰位置に使う。
+  // レンダー中に書くと復帰位置を決める前に先頭の曲で上書きしてしまうので、描画後に記録する。
+  useEffect(() => {
+    const item = itemsRef.current[activeIndex];
+    if (item) {
+      lastViewedSongId = item.song.id;
+    }
+  }, [activeIndex]);
+
+  const restoredIndexRef = useRef<number | null>(null);
+  const initialScrollIndex = useMemo(() => {
+    if (restoredIndexRef.current != null) {
+      return restoredIndexRef.current;
+    }
+    if (filteredItems.length === 0) {
+      return 0;
+    }
+    const targetId = playback.currentSong?.id ?? lastViewedSongId;
+    const found = filteredItems.findIndex((item) => item.song.id === targetId);
+    restoredIndexRef.current = found >= 0 ? found : 0;
+    return restoredIndexRef.current;
+  }, [filteredItems, playback.currentSong?.id]);
+
   const getItemLayout = useMemo(
     () =>
       viewportHeight > 0
@@ -401,12 +460,97 @@ export default function HomeScreen() {
   return (
     <View
       ref={rootRef}
-      style={[styles.root, isWide && styles.rootWide]}
-      onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+      style={styles.root}
       {...swipeHandlers}
     >
-      <StatusBar style="light" />
-      {loading || viewportHeight === 0 ? (
+      <StatusBar style="dark" />
+
+      <View style={styles.contentWrap}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Tune Market</Text>
+        <Text style={styles.headerPoint}>
+          {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
+        </Text>
+      </View>
+
+      {/*
+        絞り込みバー。
+        タグを選ぶと行が増えて高さが変わり、下のリールが押し出されて
+        買うボタンがはみ出していたため、常に1行の固定高にしている。
+      */}
+      <View style={styles.genreBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.genreBarContent}
+        >
+          {hasGenreFilter && (
+            <Pressable
+              style={[styles.genreChip, styles.resetChip]}
+              onPress={() => {
+                setGenreFilter({});
+                setTagFilter({});
+              }}
+            >
+              <Text style={[styles.genreChipText, styles.resetChipText]}>
+                リセット
+              </Text>
+            </Pressable>
+          )}
+
+          {Object.keys(tagFilter).map((tag) => {
+            const mode = tagFilter[tag];
+            return (
+              <Pressable
+                key={`tag-${tag}`}
+                style={[
+                  styles.genreChip,
+                  mode === "include" && styles.genreChipInclude,
+                  mode === "exclude" && styles.genreChipExclude,
+                ]}
+                onPress={() => cycleTag(tag)}
+              >
+                <Text
+                  style={[
+                    styles.genreChipText,
+                    mode === "include" && styles.genreChipTextInclude,
+                    mode === "exclude" && styles.genreChipTextExclude,
+                  ]}
+                >
+                  {mode === "exclude" ? `✕ #${tag}` : `#${tag}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {GENRES.map((genre) => {
+            const mode = genreFilter[genre];
+            return (
+              <Pressable
+                key={genre}
+                style={[
+                  styles.genreChip,
+                  mode === "include" && styles.genreChipInclude,
+                  mode === "exclude" && styles.genreChipExclude,
+                ]}
+                onPress={() => cycleGenre(genre)}
+              >
+                <Text
+                  style={[
+                    styles.genreChipText,
+                    mode === "include" && styles.genreChipTextInclude,
+                    mode === "exclude" && styles.genreChipTextExclude,
+                  ]}
+                >
+                  {mode === "exclude" ? `✕ ${genre}` : genre}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Colors.accent} />
         </View>
@@ -419,6 +563,10 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : (
+        <View
+          style={styles.listWrap}
+          onLayout={(event) => setMeasuredHeight(event.nativeEvent.layout.height)}
+        >
         <FlatList
           ref={listRef}
           data={filteredItems}
@@ -459,99 +607,17 @@ export default function HomeScreen() {
           scrollEnabled={Platform.OS !== "web"}
           showsVerticalScrollIndicator={false}
           getItemLayout={getItemLayout}
+          initialScrollIndex={initialScrollIndex}
           viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
           initialNumToRender={2}
           windowSize={3}
         />
+        </View>
       )}
 
       {activeSong?.audioUrl ? (
         <ReelSeekBar expanded={!playback.isPlaying} />
       ) : null}
-
-      <View style={styles.header} pointerEvents="none">
-        <Text style={styles.headerTitle}>Tune Market</Text>
-        <Text style={styles.headerPoint}>
-          {profile ? `${formatPoint(profile.pointBalance)} pt` : ""}
-        </Text>
-      </View>
-
-      <View style={styles.genreBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.genreBarContent}
-        >
-          {hasGenreFilter && (
-            <Pressable
-              style={styles.genreChip}
-              onPress={() => {
-                setGenreFilter({});
-                setTagFilter({});
-              }}
-            >
-              <Text style={styles.genreChipText}>リセット</Text>
-            </Pressable>
-          )}
-          {GENRES.map((genre) => {
-            const mode = genreFilter[genre];
-            return (
-              <Pressable
-                key={genre}
-                style={[
-                  styles.genreChip,
-                  mode === "include" && styles.genreChipInclude,
-                  mode === "exclude" && styles.genreChipExclude,
-                ]}
-                onPress={() => cycleGenre(genre)}
-              >
-                <Text
-                  style={[
-                    styles.genreChipText,
-                    mode != null && styles.genreChipTextActive,
-                  ]}
-                >
-                  {mode === "exclude" ? `✕ ${genre}` : genre}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {Object.keys(tagFilter).length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.genreBarContent, styles.tagBarContent]}
-          >
-            {Object.keys(tagFilter).map((tag) => {
-              const mode = tagFilter[tag];
-              return (
-                <Pressable
-                  key={tag}
-                  style={[
-                    styles.genreChip,
-                    mode === "include" && styles.genreChipInclude,
-                    mode === "exclude" && styles.genreChipExclude,
-                  ]}
-                  onPress={() => cycleTag(tag)}
-                >
-                  <Text
-                    style={[styles.genreChipText, styles.genreChipTextActive]}
-                  >
-                    {mode === "exclude" ? `✕ #${tag}` : `#${tag}`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        )}
-
-        {hasGenreFilter && (
-          <Text style={styles.genreHint}>
-            曲の#タグをタップ: 紫=これを再生 / 赤=除外 / もう一度で解除
-          </Text>
-        )}
       </View>
 
       {activeSong && (
@@ -604,16 +670,22 @@ export default function HomeScreen() {
   );
 }
 
+/** リールの中身の最大幅。広い画面でも横に伸ばしすぎない */
+const REEL_MAX_WIDTH = 560;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: Colors.background,
+    // 下タブは絶対配置なので、その高さぶんを空けておく
+    paddingBottom: 80,
   },
-  // Web を広い画面で開いたとき、リールが横に伸びきらないよう
-  // スマホ相当の幅で中央に置く。
-  rootWide: {
+  // 地は全幅のまま、中身だけ中央に寄せる。
+  // 他の画面（Screen コンポーネント）と同じ扱いにして見た目を揃える。
+  contentWrap: {
+    flex: 1,
     width: "100%",
-    maxWidth: 440,
+    maxWidth: REEL_MAX_WIDTH,
     alignSelf: "center",
   },
   center: {
@@ -629,73 +701,68 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     paddingTop: 56,
+    paddingBottom: 10,
     paddingHorizontal: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  listWrap: {
+    flex: 1,
+  },
   headerTitle: {
     color: Colors.text,
     fontSize: 18,
     fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 6,
   },
   headerPoint: {
     color: Colors.text,
     fontSize: 14,
     fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 6,
   },
   genreBar: {
-    position: "absolute",
-    top: 92,
-    left: 0,
-    right: 0,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.cardBorder,
   },
   genreBarContent: {
     paddingHorizontal: 16,
     gap: 8,
   },
-  tagBarContent: {
-    paddingTop: 8,
-  },
   genreChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.45)",
-    backgroundColor: "rgba(2, 6, 23, 0.55)",
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.input,
     paddingVertical: 7,
     paddingHorizontal: 14,
   },
   genreChipInclude: {
-    backgroundColor: "rgba(139, 92, 246, 0.9)",
+    backgroundColor: Colors.accent,
     borderColor: Colors.accent,
   },
   genreChipExclude: {
-    backgroundColor: "rgba(248, 113, 113, 0.85)",
+    backgroundColor: "#FCEBEB",
     borderColor: Colors.down,
   },
   genreChipText: {
-    color: Colors.text,
+    color: Colors.textMuted,
     fontSize: 12,
     fontWeight: "700",
   },
-  genreChipTextActive: {
-    color: "#FFFFFF",
+  // 選択中は黒地に白文字
+  genreChipTextInclude: {
+    color: Colors.onAccent,
   },
-  genreHint: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 10,
-    paddingHorizontal: 16,
-    marginTop: 6,
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 4,
+  // 除外は薄い赤地なので、文字も赤系にしないと読めない
+  genreChipTextExclude: {
+    color: Colors.down,
+  },
+  resetChip: {
+    borderColor: Colors.text,
+  },
+  resetChipText: {
+    color: Colors.text,
   },
 });

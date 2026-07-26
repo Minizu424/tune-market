@@ -1,11 +1,11 @@
 import { useAudioPlayerStatus } from "expo-audio";
 import { useRef, useState } from "react";
 import { PanResponder, StyleSheet, Text, View } from "react-native";
-import { OverlayColors as Colors } from "@/constants/colors";
+import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
 type ReelSeekBarProps = {
-  /** 一時停止中は太いバー+時間表示、再生中は細いバーだけ */
+  /** 一時停止中は最初から太いバー+時間表示にする（再生中でも操作は可能） */
   expanded: boolean;
 };
 
@@ -75,16 +75,16 @@ export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
     }),
   ).current;
 
+  // 再生中でもシークできるようにする。太くするのは一時停止中かドラッグ中だけ。
+  const isDragging = dragRatio !== null;
+  const active = expanded || isDragging;
+
   return (
-    <View style={styles.container} pointerEvents={expanded ? "auto" : "none"}>
-      {expanded && (
-        <View style={styles.timeRow}>
-          <Text style={styles.time}>
-            {formatTime(ratio * duration)}
-          </Text>
-          <Text style={styles.time}>{formatTime(duration)}</Text>
-        </View>
-      )}
+    <View style={styles.container}>
+      <View style={styles.timeRow}>
+        <Text style={styles.time}>{formatTime(ratio * duration)}</Text>
+        <Text style={styles.time}>{formatTime(duration)}</Text>
+      </View>
 
       {/* 当たり判定を広めに取ったドラッグ領域 */}
       <View
@@ -92,14 +92,18 @@ export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
         onLayout={(event) => {
           barWidthRef.current = event.nativeEvent.layout.width;
         }}
-        {...(expanded ? panResponder.panHandlers : {})}
+        {...panResponder.panHandlers}
       >
-        <View style={[styles.track, expanded && styles.trackExpanded]}>
+        <View style={[styles.track, active && styles.trackExpanded]}>
           <View style={[styles.fill, { width: `${ratio * 100}%` }]} />
         </View>
-        {expanded && (
-          <View style={[styles.knob, { left: `${ratio * 100}%` }]} />
-        )}
+        <View
+          style={[
+            styles.knob,
+            active && styles.knobActive,
+            { left: `${ratio * 100}%` },
+          ]}
+        />
       </View>
     </View>
   );
@@ -107,10 +111,9 @@ export function ReelSeekBar({ expanded }: ReelSeekBarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 78,
+    marginHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 6,
   },
   timeRow: {
     flexDirection: "row",
@@ -118,11 +121,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   time: {
-    color: "rgba(255,255,255,0.9)",
+    color: Colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowRadius: 4,
   },
   touchArea: {
     height: 32,
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
   track: {
     height: 3,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    backgroundColor: Colors.cardBorder,
     overflow: "hidden",
   },
   trackExpanded: {
@@ -145,15 +146,20 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: Colors.accent,
   },
-  knob: {
-    position: "absolute",
+  knobActive: {
     width: 18,
     height: 18,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
     marginLeft: -9,
+  },
+  knob: {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: Colors.accent,
+    marginLeft: -6,
     shadowColor: "#000",
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.18,
     shadowRadius: 4,
   },
 });
