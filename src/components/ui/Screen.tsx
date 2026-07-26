@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   withBottomNav: {
-    paddingBottom: 110,
+    paddingBottom: 104,
   },
   title: {
     color: Colors.text,

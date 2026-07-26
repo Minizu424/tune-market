@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   likeButtonActive: {
-    borderColor: "#C13C74",
-    backgroundColor: "rgba(193, 60, 116, 0.10)",
+    borderColor: Colors.down,
+    backgroundColor: "rgba(196, 52, 43, 0.08)",
   },
   likeButtonText: {
     color: Colors.text,

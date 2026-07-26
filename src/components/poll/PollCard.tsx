@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    backgroundColor: Colors.input,
+    backgroundColor: Colors.background,
     overflow: "hidden",
   },
   optionSelected: {
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(91, 75, 212, 0.16)",
+    backgroundColor: "rgba(17, 17, 19, 0.07)",
   },
   optionContent: {
     flexDirection: "row",

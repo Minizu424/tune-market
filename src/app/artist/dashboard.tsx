@@ -165,8 +165,8 @@ function StatTile({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   heroCard: {
     marginBottom: 14,
-    backgroundColor: "#EEEDFE",
-    borderColor: "#CECBF6",
+    backgroundColor: Colors.subtle,
+    borderColor: Colors.cardBorder,
   },
   heroLabel: {
     color: Colors.accentSoft,

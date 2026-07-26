@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { OverlayColors as Colors } from "@/constants/colors";
+import { Colors } from "@/constants/colors";
 import { formatPoint } from "@/lib/format";
 import {
   getSongCommentsPage,
@@ -457,10 +457,10 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(17, 17, 19, 0.35)",
   },
   sheet: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderColor: Colors.cardBorder,
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(31, 41, 55, 0.6)",
+    borderBottomColor: Colors.cardBorder,
   },
   avatar: {
     width: 34,

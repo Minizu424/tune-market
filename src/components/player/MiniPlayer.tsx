@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { OverlayColors as Colors } from "@/constants/colors";
+import { Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
 const PLAYER_SIZE = 150;
@@ -172,22 +172,22 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#171F35",
+    backgroundColor: Colors.card,
     borderColor: Colors.cardBorder,
     borderWidth: 1,
     shadowColor: "#000",
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.14,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 10,
   },
   fallbackBg: {
-    backgroundColor: "#1E1B4B",
+    backgroundColor: Colors.input,
     alignItems: "center",
     justifyContent: "center",
   },
   fallbackNote: {
-    color: "rgba(255,255,255,0.7)",
+    color: Colors.textFaint,
     fontSize: 44,
     fontWeight: "800",
   },
@@ -198,13 +198,13 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 999,
-    backgroundColor: "rgba(2, 6, 23, 0.7)",
+    backgroundColor: "rgba(17, 17, 19, 0.62)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
   },
   closeText: {
-    color: Colors.text,
+    color: Colors.onAccent,
     fontSize: 12,
   },
   playButton: {
@@ -214,13 +214,13 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 999,
-    backgroundColor: "rgba(2, 6, 23, 0.7)",
+    backgroundColor: "rgba(17, 17, 19, 0.62)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
   },
   playText: {
-    color: Colors.text,
+    color: Colors.onAccent,
     fontSize: 12,
   },
   infoStrip: {
@@ -228,18 +228,19 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(2, 6, 23, 0.72)",
+    backgroundColor: "rgba(17, 17, 19, 0.72)",
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
+  // infoStrip はジャケット画像の上に敷いた暗い帯なので、文字は白系にする
   title: {
-    color: Colors.text,
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 1,
   },
   artist: {
-    color: Colors.textMuted,
+    color: "rgba(255,255,255,0.78)",
     fontSize: 10,
   },
 });

@@ -105,7 +105,13 @@ export default function SongsScreen() {
           ))}
         </View>
       ) : (
-        filtered.map((song) => <SongListItem key={song.id} song={song} />)
+        filtered.map((song, index) => (
+          <SongListItem
+            key={song.id}
+            song={song}
+            isLast={index === filtered.length - 1}
+          />
+        ))
       )}
     </Screen>
   );
@@ -115,10 +121,10 @@ const styles = StyleSheet.create({
   search: {
     backgroundColor: Colors.input,
     color: Colors.text,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
     marginBottom: 12,
   },
   tabs: {
@@ -130,15 +136,12 @@ const styles = StyleSheet.create({
   },
   tab: {
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    backgroundColor: Colors.card,
+    backgroundColor: Colors.input,
     paddingVertical: 8,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
   },
   tabActive: {
     backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
   },
   tabText: {
     color: Colors.textMuted,

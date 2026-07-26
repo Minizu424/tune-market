@@ -36,7 +36,7 @@ export function AppButton({
 const styles = StyleSheet.create({
   button: {
     borderRadius: 999,
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
   },
   secondary: {
-    backgroundColor: Colors.input,
+    backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
