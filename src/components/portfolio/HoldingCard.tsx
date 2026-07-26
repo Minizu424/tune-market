@@ -47,14 +47,12 @@ export function HoldingCard({ item }: HoldingCardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.card,
-    borderColor: Colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.cardBorder,
+    paddingVertical: 12,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: 0.6,
   },
   row: {
     flexDirection: "row",

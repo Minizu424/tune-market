@@ -40,10 +40,10 @@ export function PriceChart({ prices, height = 120 }: PriceChartProps) {
                 {
                   height: height * ratio,
                   backgroundColor: isLast
-                    ? Colors.accentSoft
+                    ? Colors.text
                     : rising
-                      ? "rgba(91, 75, 212, 0.55)"
-                      : "rgba(179, 56, 43, 0.42)",
+                      ? "rgba(18, 128, 92, 0.45)"
+                      : "rgba(196, 52, 43, 0.40)",
                 },
               ]}
             />

@@ -9,34 +9,31 @@ import { SongJacket } from "./SongJacket";
 type SongListItemProps = {
   song: Song;
   /**
-   * row  …… スマホ向けの横1行
-   * tile …… 画面が広いときのタイル。ジャケットを大きく見せる
+   * row  …… 区切り線で並ぶフラットな行（スマホ既定）
+   * tile …… 画面が広いときのタイル
    */
   variant?: "row" | "tile";
+  /** 一覧の最終行だけ区切り線を消す */
+  isLast?: boolean;
 };
 
-/** 騰落率を色付きのピルで表示する。一覧で一番見たい情報なので目立たせる。 */
-function ChangePill({ changeRate }: { changeRate: number }) {
+/**
+ * 楽曲一覧の1件。
+ *
+ * カードを敷かず、白地にヘアラインで区切るフラットな行にしている
+ * （TradingView のウォッチリストと同じ構造）。
+ * 一覧で最も見たい情報は価格と騰落なので、右側に大きく寄せる。
+ */
+export function SongListItem({
+  song,
+  variant = "row",
+  isLast = false,
+}: SongListItemProps) {
+  const changeRate = calculatePriceChangeRate(song);
   const rising = changeRate > 0;
   const falling = changeRate < 0;
-  const color = rising ? Colors.up : falling ? Colors.down : Colors.textMuted;
-  const background = rising
-    ? "rgba(15, 110, 86, 0.10)"
-    : falling
-      ? "rgba(179, 56, 43, 0.10)"
-      : "rgba(95, 92, 85, 0.08)";
-
-  return (
-    <View style={[styles.pill, { backgroundColor: background }]}>
-      <Text style={[styles.pillText, { color }]}>
-        {rising ? "▲" : falling ? "▼" : "－"} {formatRate(changeRate).replace(/^[+-]/, "")}
-      </Text>
-    </View>
-  );
-}
-
-export function SongListItem({ song, variant = "row" }: SongListItemProps) {
-  const changeRate = calculatePriceChangeRate(song);
+  const changeColor = rising ? Colors.up : falling ? Colors.down : Colors.textMuted;
+  const diff = song.currentPrice - (song.previousPrice ?? song.currentPrice);
   const onPress = () => router.push(`/songs/${song.id}`);
 
   if (variant === "tile") {
@@ -52,23 +49,28 @@ export function SongListItem({ song, variant = "row" }: SongListItemProps) {
         <Text style={styles.meta} numberOfLines={1}>
           {song.artistName} ・ {song.genre}
         </Text>
-        <View style={styles.tilePriceRow}>
-          <Text style={styles.tilePrice}>
-            {formatPoint(song.currentPrice)}
-            <Text style={styles.unit}> pt</Text>
-          </Text>
-          <ChangePill changeRate={changeRate} />
-        </View>
+        <Text style={styles.tilePrice}>
+          {formatPoint(song.currentPrice)}
+          <Text style={styles.unit}> pt</Text>
+        </Text>
+        <Text style={[styles.change, { color: changeColor }]}>
+          {diff >= 0 ? "+" : "−"}
+          {formatPoint(Math.abs(diff))} {formatRate(changeRate)}
+        </Text>
       </Pressable>
     );
   }
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        !isLast && styles.rowDivider,
+        pressed && styles.pressed,
+      ]}
       onPress={onPress}
     >
-      <SongJacket jacketUrl={song.jacketUrl} title={song.title} size={56} />
+      <SongJacket jacketUrl={song.jacketUrl} title={song.title} size={44} />
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={1}>
           {song.title}
@@ -82,7 +84,10 @@ export function SongListItem({ song, variant = "row" }: SongListItemProps) {
           {formatPoint(song.currentPrice)}
           <Text style={styles.unit}> pt</Text>
         </Text>
-        <ChangePill changeRate={changeRate} />
+        <Text style={[styles.change, { color: changeColor }]}>
+          {diff >= 0 ? "+" : "−"}
+          {formatPoint(Math.abs(diff))} {formatRate(changeRate)}
+        </Text>
       </View>
     </Pressable>
   );
@@ -94,23 +99,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     backgroundColor: Colors.card,
-    borderColor: Colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 16,
     paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 10,
+  },
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.cardBorder,
   },
   tile: {
     flex: 1,
     backgroundColor: Colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 12,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: 0.6,
   },
   info: {
     flex: 1,
@@ -119,14 +123,14 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontSize: 15,
     fontWeight: "700",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   tileTitle: {
     color: Colors.text,
     fontSize: 15,
     fontWeight: "700",
     marginTop: 12,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   meta: {
     color: Colors.textMuted,
@@ -134,38 +138,28 @@ const styles = StyleSheet.create({
   },
   priceBlock: {
     alignItems: "flex-end",
-    gap: 5,
   },
   price: {
     color: Colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    letterSpacing: -0.4,
-  },
-  tilePriceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 10,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
   },
   tilePrice: {
     color: Colors.text,
     fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: -0.4,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+    marginTop: 10,
   },
   unit: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: Colors.textMuted,
   },
-  pill: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: "800",
+  change: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });

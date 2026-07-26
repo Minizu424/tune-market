@@ -1,64 +1,73 @@
 /**
  * Tune Market 配色トークン
  *
- * 2系統ある。
+ * 参考にしたアプリ（TradingView / Woodstock / Instagram / YouTube Music）から
+ * 読み取った構造:
  *
- * 1. Colors        …… ライト基調。アプリの大半の画面で使う。
- * 2. OverlayColors …… ジャケット画像の上に重ねる画面（リール・ミニプレイヤー・
- *                      コメントシート）で使うダーク。写真の上では明るいUIだと
- *                      文字が読めないため、ここだけは暗いままにする。
+ * - 一覧はカードを使わず、真っ白の地に細い区切り線でフラットに並べる
+ * - 数字（価格・騰落）が主役。騰落は緑／赤の素のテキスト
+ * - 主要ボタンは黒のピル。色数を絞ってモノクロ＋損益色に寄せる
+ * - メディアを主役にする画面（リール・プレイヤー）だけ暗い
  *
- * キー名は2系統で共通にしてある。ダーク側の画面は
+ * そのため2系統を持つ。
+ *
+ * 1. Colors        …… 白基調。アプリの大半
+ * 2. OverlayColors …… ジャケット画像の上に重なる画面
+ *
+ * キー名は共通なので、暗いままにする画面は
  *   import { OverlayColors as Colors } from "@/constants/colors";
  * と読み替えるだけで切り替わる。
  */
 
-/** ライト基調（既定） */
+/** 白基調（既定） */
 export const Colors = {
-  /** 画面の下地。真っ白ではなく少し温かみのあるグレーにして、白いカードを浮かせる */
-  background: "#E9E7E0",
-  /** カード面 */
+  /** 画面の地。純白は目が疲れるので、わずかに温かみのあるオフホワイトにする */
+  background: "#FAFAF8",
+  /** カード・シート。地より一段明るいので、わずかに浮いて見える */
   card: "#FFFFFF",
-  /** 罫線 */
-  cardBorder: "#D6D2C8",
-  /** 入力欄・くぼんだ面 */
-  input: "#F4F2ED",
-  /** 主役の操作色。白文字を載せてコントラストが取れる濃さにしてある */
-  accent: "#5B4BD4",
-  /** アクセント系の文字色。白背景で読める濃さ */
-  accentSoft: "#4F41BC",
+  /** 区切り線・ヘアライン */
+  cardBorder: "#E5E4DF",
+  /** 検索欄などの入力面。地より一段暗くしてくぼませる */
+  input: "#F0EFEB",
+  /** 一段くぼんだ面（統計ブロックなど） */
+  subtle: "#F4F3EF",
+  /** 主要ボタン。参考アプリに合わせて黒に寄せる */
+  accent: "#111113",
+  /** リンク・選択中の文字 */
+  accentSoft: "#3A3A3E",
   /** 本文 */
-  text: "#1B1A18",
+  text: "#111113",
   /** 補助テキスト */
-  textMuted: "#5F5C55",
+  textMuted: "#57575F",
   /** 注釈・プレースホルダ */
-  textFaint: "#6A6760",
+  textFaint: "#6C6C73",
   /** 上昇 */
-  up: "#0F6E56",
+  up: "#127C59",
   /** 下落 */
-  down: "#B3382B",
+  down: "#C4342B",
   /** バッジなどの強調 */
   gold: "#8F5D08",
-  /** 色付き面に載せる文字（アクセント地・ゴールド地の上） */
+  /** 色付き面に載せる文字 */
   onAccent: "#FFFFFF",
   onGold: "#412402",
 } as const;
 
-/** ジャケット画像の上に重ねる面で使うダーク */
+/** ジャケット画像の上に重なる面で使うダーク */
 export const OverlayColors = {
-  background: "#0B0D12",
-  card: "#171A21",
-  cardBorder: "#2A2E38",
-  input: "#1E222B",
-  accent: "#8357E7",
-  accentSoft: "#C4B5FD",
+  background: "#0B0B0D",
+  card: "#17181C",
+  cardBorder: "#2B2C31",
+  input: "#1F2024",
+  subtle: "#17181C",
+  accent: "#FFFFFF",
+  accentSoft: "#D8D8DD",
   text: "#FFFFFF",
-  textMuted: "#B7BCC6",
-  textFaint: "#8A8F99",
-  up: "#4ADE80",
-  down: "#F87171",
+  textMuted: "#B4B4BC",
+  textFaint: "#8A8A93",
+  up: "#3DDC97",
+  down: "#FF6B60",
   gold: "#FBBF24",
-  onAccent: "#FFFFFF",
+  onAccent: "#111113",
   onGold: "#412402",
 } as const;
 

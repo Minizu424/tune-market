@@ -12,7 +12,7 @@ type SongJacketProps = {
 
 // 音源にジャケットが無いときの代替色。写真の代わりなので彩度は保ちつつ、
 // 白文字が載る前提でやや濃いめに揃えてある。
-const JACKET_COLORS = ["#5B4BD4", "#1F6FD0", "#0E7C68", "#C13C74", "#B0730A", "#4338A8"];
+const JACKET_COLORS = ["#3F3F46", "#1F5F8B", "#12805C", "#8B3A62", "#8F5D08", "#4B4B7A"];
 
 export function SongJacket({
   jacketUrl,
