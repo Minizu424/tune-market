@@ -8,6 +8,11 @@ export function buildHoldingId(userId: string, songId: string): string {
   return `${userId}_${songId}`;
 }
 
+/** 保有ドキュメントの参照を返す（トランザクション内で使う） */
+export function getHoldingRef(userId: string, songId: string) {
+  return doc(db, HOLDINGS_COLLECTION, buildHoldingId(userId, songId));
+}
+
 export async function getHolding(
   userId: string,
   songId: string,

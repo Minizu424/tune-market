@@ -141,6 +141,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   tabTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
   },
 });

@@ -5,6 +5,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,12 +14,16 @@ import {
 } from "react-native";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { ReelCard } from "@/components/reel/ReelCard";
+import { ReelSeekBar } from "@/components/reel/ReelSeekBar";
 import { CommentsSheet } from "@/components/comments/CommentsSheet";
 import { SupportModal } from "@/components/support/SupportModal";
 import { BuyStockModal } from "@/components/trade/BuyStockModal";
-import { Colors } from "@/constants/colors";
+import { StatusBar } from "expo-status-bar";
+import { useLayout } from "@/hooks/use-layout";
+import { OverlayColors as Colors } from "@/constants/colors";
 import { GENRES } from "@/constants/genres";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import { useSwipeTabs } from "@/hooks/use-swipe-tabs";
 import { formatPoint } from "@/lib/format";
 import { usePlayback } from "@/contexts/PlaybackContext";
 import { getLikedSongIds } from "@/repositories/likesRepository";
@@ -37,8 +42,10 @@ type ModalKind = "buy" | "support" | "comments" | null;
  */
 export default function HomeScreen() {
   const { profile, refreshProfile } = useAuthUser();
+  const { isWide } = useLayout();
   const [items, setItems] = useState<WeeklyRankingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [modal, setModal] = useState<ModalKind>(null);
@@ -49,6 +56,7 @@ export default function HomeScreen() {
 
   const playback = usePlayback();
   const { playQueue } = playback;
+  const swipeHandlers = useSwipeTabs();
   const listRef = useRef<FlatList<WeeklyRankingItem>>(null);
   const rootRef = useRef<View>(null);
   const lastWheelAtRef = useRef(0);
@@ -360,6 +368,19 @@ export default function HomeScreen() {
     refreshProfile().catch(console.error);
   }, [loadSongs, refreshProfile]);
 
+  // 一番上で引っ張るとランキングを再読み込みする
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadSongs();
+      await refreshProfile();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadSongs, refreshProfile]);
+
   const keyExtractor = useCallback(
     (item: WeeklyRankingItem) => item.song.id,
     [],
@@ -380,9 +401,11 @@ export default function HomeScreen() {
   return (
     <View
       ref={rootRef}
-      style={styles.root}
+      style={[styles.root, isWide && styles.rootWide]}
       onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+      {...swipeHandlers}
     >
+      <StatusBar style="light" />
       {loading || viewportHeight === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={Colors.accent} />
@@ -407,6 +430,8 @@ export default function HomeScreen() {
               isActive={index === activeIndex}
               weeklyRank={hasGenreFilter ? undefined : index + 1}
               isLiked={likedIds.has(item.song.id)}
+              isPaused={!playback.isPlaying}
+              onTogglePlay={playback.toggle}
               tagStates={tagFilter}
               onPressTag={cycleTag}
               onPressLike={() => handleToggleLike(item.song.id)}
@@ -419,6 +444,13 @@ export default function HomeScreen() {
           onScrollBeginDrag={() => {
             autoScrollTargetRef.current = null;
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.accent}
+            />
+          }
           // 勢いのあるスワイプでも次の1曲で必ず止める
           snapToInterval={viewportHeight}
           disableIntervalMomentum
@@ -432,6 +464,10 @@ export default function HomeScreen() {
           windowSize={3}
         />
       )}
+
+      {activeSong?.audioUrl ? (
+        <ReelSeekBar expanded={!playback.isPlaying} />
+      ) : null}
 
       <View style={styles.header} pointerEvents="none">
         <Text style={styles.headerTitle}>Tune Market</Text>
@@ -572,6 +608,13 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#000000",
+  },
+  // Web を広い画面で開いたとき、リールが横に伸びきらないよう
+  // スマホ相当の幅で中央に置く。
+  rootWide: {
+    width: "100%",
+    maxWidth: 440,
+    alignSelf: "center",
   },
   center: {
     flex: 1,

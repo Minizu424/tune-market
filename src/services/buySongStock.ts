@@ -1,5 +1,6 @@
 import { collection, doc, increment, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { executeTrade } from "@/lib/pricing";
 import { buildHoldingId } from "@/repositories/holdingsRepository";
 import type { AppUser, Holding, Song } from "@/types";
 
@@ -12,6 +13,12 @@ export type BuySongStockInput = {
 export type BuySongStockResult = {
   quantity: number;
   newPointBalance: number;
+  /** 平均約定価格（この価格で買った） */
+  tradedPrice: number;
+  /** 買う前の価格 */
+  beforePrice: number;
+  /** 買いによって上昇したあとの価格 */
+  newPrice: number;
 };
 
 /**
@@ -20,6 +27,7 @@ export type BuySongStockResult = {
  * 2. holdings を作成または更新する（端数購入に対応）
  * 3. transactions に buy 履歴を保存する
  * 4. 新規保有の場合は songs.holderCount を加算する
+ * 5. 買い注文の需給インパクトで currentPrice を上昇させ、priceHistories に記録する
  */
 export async function buySongStock(
   input: BuySongStockInput,
@@ -34,6 +42,7 @@ export async function buySongStock(
   const songRef = doc(db, "songs", songId);
   const holdingRef = doc(db, "holdings", buildHoldingId(userId, songId));
   const transactionRef = doc(collection(db, "transactions"));
+  const priceHistoryRef = doc(collection(db, "priceHistories"));
 
   return runTransaction(db, async (tx) => {
     const [userSnap, songSnap, holdingSnap] = await Promise.all([
@@ -62,7 +71,11 @@ export async function buySongStock(
       throw new Error("現在価格が不正です。");
     }
 
-    const quantity = Number((pointAmount / song.currentPrice).toFixed(4));
+    // 価格を押し上げながら約定するため、約定価格は取引前後の平均になる
+    const execution = executeTrade(song.currentPrice, pointAmount, "buy");
+    const tradedPrice = execution.executionPrice;
+    const newPrice = execution.afterPrice;
+    const quantity = Number((pointAmount / tradedPrice).toFixed(4));
     const isNewHolder =
       !holdingSnap.exists() || (holdingSnap.data() as Holding).quantity <= 0;
 
@@ -82,7 +95,7 @@ export async function buySongStock(
         userId,
         songId,
         quantity,
-        averagePrice: song.currentPrice,
+        averagePrice: tradedPrice,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -93,16 +106,25 @@ export async function buySongStock(
       updatedAt: serverTimestamp(),
     });
 
-    if (isNewHolder) {
-      tx.update(songRef, { holderCount: increment(1) });
-    }
+    tx.update(songRef, {
+      currentPrice: newPrice,
+      ...(isNewHolder ? { holderCount: increment(1) } : {}),
+      updatedAt: serverTimestamp(),
+    });
+
+    tx.set(priceHistoryRef, {
+      songId,
+      price: newPrice,
+      source: "trade",
+      recordedAt: serverTimestamp(),
+    });
 
     tx.set(transactionRef, {
       userId,
       songId,
       type: "buy",
       quantity,
-      price: song.currentPrice,
+      price: tradedPrice,
       totalPoint: pointAmount,
       createdAt: serverTimestamp(),
     });
@@ -110,6 +132,9 @@ export async function buySongStock(
     return {
       quantity,
       newPointBalance: user.pointBalance - pointAmount,
+      tradedPrice,
+      beforePrice: execution.beforePrice,
+      newPrice,
     };
   });
 }

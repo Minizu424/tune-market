@@ -1,5 +1,6 @@
 import { collection, doc, increment, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { executeTrade } from "@/lib/pricing";
 import { buildHoldingId } from "@/repositories/holdingsRepository";
 import type { AppUser, Holding, Song } from "@/types";
 
@@ -12,6 +13,12 @@ export type SellSongStockInput = {
 export type SellSongStockResult = {
   proceeds: number;
   newPointBalance: number;
+  /** 平均約定価格（この価格で売った） */
+  tradedPrice: number;
+  /** 売る前の価格 */
+  beforePrice: number;
+  /** 売りによって下落したあとの価格 */
+  newPrice: number;
 };
 
 const QUANTITY_EPSILON = 0.0001;
@@ -22,6 +29,7 @@ const QUANTITY_EPSILON = 0.0001;
  * 2. 現在価格をもとに売却額を計算して pointBalance に加算する
  * 3. holdings を更新する（0株になっても履歴として残す）
  * 4. transactions に sell 履歴を保存する
+ * 5. 売り注文の需給インパクトで currentPrice を下落させ、priceHistories に記録する
  */
 export async function sellSongStock(
   input: SellSongStockInput,
@@ -36,6 +44,7 @@ export async function sellSongStock(
   const songRef = doc(db, "songs", songId);
   const holdingRef = doc(db, "holdings", buildHoldingId(userId, songId));
   const transactionRef = doc(collection(db, "transactions"));
+  const priceHistoryRef = doc(collection(db, "priceHistories"));
 
   return runTransaction(db, async (tx) => {
     const [userSnap, songSnap, holdingSnap] = await Promise.all([
@@ -62,7 +71,12 @@ export async function sellSongStock(
       throw new Error("保有株数を超えて売却することはできません。");
     }
 
-    const proceeds = Number((quantity * song.currentPrice).toFixed(2));
+    // 取引規模は「取引前価格での概算売却額」で測り、約定価格は取引前後の平均にする
+    const notional = quantity * song.currentPrice;
+    const execution = executeTrade(song.currentPrice, notional, "sell");
+    const tradedPrice = execution.executionPrice;
+    const newPrice = execution.afterPrice;
+    const proceeds = Number((quantity * tradedPrice).toFixed(2));
     const rawRemaining = holding.quantity - quantity;
     const remaining =
       rawRemaining < QUANTITY_EPSILON ? 0 : Number(rawRemaining.toFixed(4));
@@ -77,16 +91,25 @@ export async function sellSongStock(
       updatedAt: serverTimestamp(),
     });
 
-    if (remaining === 0) {
-      tx.update(songRef, { holderCount: increment(-1) });
-    }
+    tx.update(songRef, {
+      currentPrice: newPrice,
+      ...(remaining === 0 ? { holderCount: increment(-1) } : {}),
+      updatedAt: serverTimestamp(),
+    });
+
+    tx.set(priceHistoryRef, {
+      songId,
+      price: newPrice,
+      source: "trade",
+      recordedAt: serverTimestamp(),
+    });
 
     tx.set(transactionRef, {
       userId,
       songId,
       type: "sell",
       quantity,
-      price: song.currentPrice,
+      price: tradedPrice,
       totalPoint: proceeds,
       createdAt: serverTimestamp(),
     });
@@ -94,6 +117,9 @@ export async function sellSongStock(
     return {
       proceeds,
       newPointBalance: user.pointBalance + proceeds,
+      tradedPrice,
+      beforePrice: execution.beforePrice,
+      newPrice,
     };
   });
 }

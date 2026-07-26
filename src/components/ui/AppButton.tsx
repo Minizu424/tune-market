@@ -1,4 +1,5 @@
 import { Pressable, StyleProp, StyleSheet, Text, ViewStyle } from "react-native";
+import { Colors } from "@/constants/colors";
 
 type AppButtonProps = {
   title: string;
@@ -27,9 +28,7 @@ export function AppButton({
         style,
       ]}
     >
-      <Text style={[styles.text, variant === "ghost" && styles.ghostText]}>
-        {title}
-      </Text>
+      <Text style={[styles.text, VARIANT_TEXT_STYLES[variant]]}>{title}</Text>
     </Pressable>
   );
 }
@@ -43,23 +42,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primary: {
-    backgroundColor: "#8B5CF6",
+    backgroundColor: Colors.accent,
   },
   secondary: {
-    backgroundColor: "#1E293B",
+    backgroundColor: Colors.input,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: Colors.cardBorder,
   },
   ghost: {
     backgroundColor: "transparent",
   },
   text: {
-    color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
   },
+  // 文字色はボタンの地の色ごとに変える。
+  // 以前は全バリアントで白文字を使っていたが、ライト基調では
+  // secondary（明るい地）の文字が消えるため分けている。
+  primaryText: {
+    color: Colors.onAccent,
+  },
+  secondaryText: {
+    color: Colors.text,
+  },
   ghostText: {
-    color: "#A78BFA",
+    color: Colors.accentSoft,
   },
   pressed: {
     opacity: 0.75,
@@ -68,3 +75,9 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
 });
+
+const VARIANT_TEXT_STYLES = {
+  primary: styles.primaryText,
+  secondary: styles.secondaryText,
+  ghost: styles.ghostText,
+} as const;

@@ -2,17 +2,20 @@ import { Timestamp, type QueryDocumentSnapshot } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { Colors } from "@/constants/colors";
+import { OverlayColors as Colors } from "@/constants/colors";
 import { formatPoint } from "@/lib/format";
 import {
   getSongCommentsPage,
@@ -49,6 +52,186 @@ export function CommentsSheet({
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedForSongRef = useRef<string | null>(null);
+
+  // シートは「全画面 / 半分 / 閉じる」の3段階。
+  // ハンドル部分を上下にドラッグして切り替える。
+  const { height: windowHeight } = useWindowDimensions();
+  const FULL_HEIGHT = Math.round(windowHeight * 0.92);
+  const HALF_HEIGHT = Math.round(windowHeight * 0.55);
+
+  const sheetHeight = useRef(new Animated.Value(HALF_HEIGHT)).current;
+  // ドラッグ中は高さを変えず transform だけ動かす（再レイアウトを避けてラグをなくす）
+  const sheetTranslate = useRef(new Animated.Value(0)).current;
+  const heightRef = useRef(HALF_HEIGHT); // 現在のスナップ高さ
+  const snapSizesRef = useRef({ full: FULL_HEIGHT, half: HALF_HEIGHT });
+  snapSizesRef.current = { full: FULL_HEIGHT, half: HALF_HEIGHT };
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const [snapState, setSnapState] = useState<"half" | "full">("half");
+
+  const animateTo = (target: number, after?: () => void) => {
+    heightRef.current = target;
+    setSnapState(target >= snapSizesRef.current.full ? "full" : "half");
+    Animated.parallel([
+      Animated.spring(sheetHeight, {
+        toValue: target,
+        friction: 10,
+        tension: 120,
+        useNativeDriver: false,
+      }),
+      Animated.spring(sheetTranslate, {
+        toValue: 0,
+        friction: 10,
+        tension: 120,
+        useNativeDriver: false,
+      }),
+    ]).start(after);
+  };
+
+  const closeSheet = () => {
+    // Modalのスライドアウトに任せる（二重アニメーションによるラグを避ける）
+    heightRef.current = snapSizesRef.current.half;
+    sheetHeight.setValue(snapSizesRef.current.half);
+    sheetTranslate.setValue(0);
+    setSnapState("half");
+    onCloseRef.current();
+  };
+
+  // ドラッグ終了時の共通スナップ処理
+  const settleAt = (currentHeight: number, velocityY: number) => {
+    const { full, half } = snapSizesRef.current;
+    const projected = currentHeight - velocityY * 200;
+    if (projected < half * 0.55) {
+      closeSheet();
+      return;
+    }
+    animateTo(projected > (full + half) / 2 ? full : half);
+  };
+
+  const snapStateRef = useRef<"half" | "full">("half");
+  snapStateRef.current = snapState;
+  const listScrollOffsetRef = useRef(0);
+
+  const handleDragMove = (dy: number) => {
+    const { full } = snapSizesRef.current;
+    const next = Math.max(80, Math.min(full, heightRef.current - dy));
+    // 高さは触らず、ずれぶんだけ transform で動かす（軽い）
+    sheetTranslate.setValue(heightRef.current - next);
+  };
+  const handleDragRelease = (dy: number, vy: number) => {
+    settleAt(heightRef.current - dy, vy);
+  };
+  const handleDragMoveRef = useRef(handleDragMove);
+  const handleDragReleaseRef = useRef(handleDragRelease);
+  handleDragMoveRef.current = handleDragMove;
+  handleDragReleaseRef.current = handleDragRelease;
+
+  // ハンドル/ヘッダー部分のドラッグ
+  const dragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) =>
+        Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_event, gesture) => handleDragMoveRef.current(gesture.dy),
+      onPanResponderRelease: (_event, gesture) =>
+        handleDragReleaseRef.current(gesture.dy, gesture.vy),
+      onPanResponderTerminate: () => {
+        animateTo(heightRef.current);
+      },
+    }),
+  ).current;
+
+  // コメント一覧の上のスワイプでもシートを動かす:
+  // ・一覧が一番上の状態で下スワイプ → シートを下げる
+  // ・半分表示中の上スワイプ → まず全画面に広げる（以降は一覧がスクロール）
+  const listDragResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_event, gesture) => {
+        if (Math.abs(gesture.dy) <= Math.abs(gesture.dx) || Math.abs(gesture.dy) < 6) {
+          return false;
+        }
+        if (snapStateRef.current === "half") {
+          // 半分表示中はスクロール無効なので、どこを触ってもシートを動かせる
+          return true;
+        }
+        // 全画面中は「一覧が上端の状態での引き下げ」だけシート操作にする
+        return gesture.dy > 6 && listScrollOffsetRef.current <= 0;
+      },
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_event, gesture) => handleDragMoveRef.current(gesture.dy),
+      onPanResponderRelease: (_event, gesture) =>
+        handleDragReleaseRef.current(gesture.dy, gesture.vy),
+      onPanResponderTerminate: () => {
+        animateTo(heightRef.current);
+      },
+    }),
+  ).current;
+
+  // 開くたびに半分の高さから始める
+  useEffect(() => {
+    if (visible) {
+      heightRef.current = HALF_HEIGHT;
+      sheetHeight.setValue(HALF_HEIGHT);
+      sheetTranslate.setValue(0);
+      setSnapState("half");
+    }
+  }, [visible, HALF_HEIGHT, sheetHeight, sheetTranslate]);
+
+  // Web用ドラッグ: DOMのポインターイベントで直接動かす
+  const dragAreaRef = useRef<View>(null);
+  const settleAtRef = useRef(settleAt);
+  settleAtRef.current = settleAt;
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible) {
+      return;
+    }
+    const node = dragAreaRef.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== "function") {
+      return;
+    }
+
+    let drag: { startY: number; base: number; last: number; lastAt: number } | null =
+      null;
+
+    const onDown = (event: PointerEvent) => {
+      drag = {
+        startY: event.clientY,
+        base: heightRef.current,
+        last: heightRef.current,
+        lastAt: Date.now(),
+      };
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!drag) {
+        return;
+      }
+      const next = Math.max(
+        80,
+        Math.min(snapSizesRef.current.full, drag.base + (drag.startY - event.clientY)),
+      );
+      drag.last = next;
+      drag.lastAt = Date.now();
+      sheetTranslate.setValue(heightRef.current - next);
+    };
+    const onUp = () => {
+      if (!drag) {
+        return;
+      }
+      settleAtRef.current(drag.last, 0);
+      drag = null;
+    };
+
+    node.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      node.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [visible, sheetHeight]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -154,21 +337,66 @@ export function CommentsSheet({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>
-            コメント（{formatPoint(song.commentCount)}）
-          </Text>
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                height: sheetHeight,
+                transform: [{ translateY: sheetTranslate }],
+              },
+            ]}
+          >
+          <View
+            ref={dragAreaRef}
+            style={styles.dragArea}
+            {...dragResponder.panHandlers}
+          >
+            <View style={styles.handle} />
+            <View style={styles.headerRow}>
+              <Pressable
+                style={styles.headerButton}
+                onPress={closeSheet}
+                hitSlop={8}
+              >
+                <Text style={styles.headerButtonText}>✕</Text>
+              </Pressable>
+              <Text style={styles.title}>
+                コメント（{formatPoint(song.commentCount)}）
+              </Text>
+              <Pressable
+                style={styles.headerButton}
+                onPress={() =>
+                  animateTo(
+                    snapState === "full"
+                      ? snapSizesRef.current.half
+                      : snapSizesRef.current.full,
+                  )
+                }
+                hitSlop={8}
+              >
+                <Text style={styles.headerButtonText}>
+                  {snapState === "full" ? "⌄" : "⌃"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
 
           {loading ? (
             <ActivityIndicator color={Colors.accent} style={styles.loading} />
           ) : (
+            <View style={styles.listWrapper} {...listDragResponder.panHandlers}>
             <FlatList
               data={comments}
               keyExtractor={(item) => item.id}
               renderItem={renderComment}
               style={styles.list}
               contentContainerStyle={styles.listContent}
+              scrollEnabled={snapState === "full"}
+              bounces={false}
+              onScroll={(event) => {
+                listScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
               onEndReached={loadMore}
               onEndReachedThreshold={0.3}
               ListEmptyComponent={
@@ -186,6 +414,7 @@ export function CommentsSheet({
                 ) : null
               }
             />
+            </View>
           )}
 
           {error && <Text style={styles.error}>{error}</Text>}
@@ -217,7 +446,7 @@ export function CommentsSheet({
           ) : (
             <Text style={styles.loginNote}>コメントするにはログインしてください</Text>
           )}
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -239,7 +468,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 28,
-    maxHeight: "75%",
+    overflow: "hidden",
+  },
+  dragArea: {
+    paddingTop: 6,
+    paddingBottom: 10,
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
   },
   handle: {
     alignSelf: "center",
@@ -249,20 +484,42 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBorder,
     marginBottom: 12,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  headerButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: Colors.card,
+    borderColor: Colors.cardBorder,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButtonText: {
+    color: Colors.textMuted,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   title: {
     color: Colors.text,
     fontSize: 16,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 12,
+    flex: 1,
   },
   loading: {
     paddingVertical: 40,
   },
+  listWrapper: {
+    flex: 1,
+  },
   list: {
-    minHeight: 180,
-    flexGrow: 0,
-    flexShrink: 1,
+    flex: 1,
   },
   listContent: {
     paddingBottom: 8,

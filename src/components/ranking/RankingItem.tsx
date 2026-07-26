@@ -14,8 +14,8 @@ type RankingItemProps = {
 
 const RANK_COLORS: Record<number, string> = {
   1: Colors.gold,
-  2: "#CBD5E1",
-  3: "#D97706",
+  2: "#7C7A74",
+  3: "#9A5B12",
 };
 
 export function RankingItem({ rank, song, value, valueColor, subValue }: RankingItemProps) {
@@ -85,12 +85,14 @@ const styles = StyleSheet.create({
   },
   value: {
     color: Colors.text,
-    fontSize: 14,
+    fontSize: 19,
     fontWeight: "800",
+    letterSpacing: -0.3,
   },
   subValue: {
     color: Colors.textMuted,
     fontSize: 11,
+    fontWeight: "700",
     marginTop: 2,
   },
 });

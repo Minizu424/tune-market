@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
-import { Colors } from "@/constants/colors";
+import { OverlayColors as Colors } from "@/constants/colors";
 import { usePlayback } from "@/contexts/PlaybackContext";
 
 const PLAYER_SIZE = 150;
@@ -124,7 +124,8 @@ export function MiniPlayer() {
     >
       <Pressable
         style={styles.card}
-        onPress={() => router.push(`/songs/${currentSong.id}`)}
+        // タップでホームのリールに戻る（再生中の曲の位置から再開する）
+        onPress={() => router.navigate("/home")}
       >
         {currentSong.jacketUrl ? (
           <Image

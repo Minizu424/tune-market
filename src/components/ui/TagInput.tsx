@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(139, 92, 246, 0.2)",
+    backgroundColor: "rgba(91, 75, 212, 0.12)",
     borderColor: Colors.accent,
     borderWidth: 1,
     paddingVertical: 6,
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   addButtonText: {
-    color: Colors.text,
+    color: Colors.onAccent,
     fontSize: 14,
     fontWeight: "700",
   },

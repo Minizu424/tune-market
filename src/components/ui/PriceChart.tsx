@@ -19,10 +19,11 @@ export function PriceChart({ prices, height = 120 }: PriceChartProps) {
     );
   }
 
-  const max = Math.max(...prices);
-  const min = Math.min(...prices);
-  const range = max - min || 1;
+  // 表示するのは直近30件。最小・最大も表示範囲で取らないとスケールが合わない。
   const visible = prices.slice(-30);
+  const max = Math.max(...visible);
+  const min = Math.min(...visible);
+  const range = max - min || 1;
   const rising = visible[visible.length - 1] >= visible[0];
 
   return (
@@ -41,8 +42,8 @@ export function PriceChart({ prices, height = 120 }: PriceChartProps) {
                   backgroundColor: isLast
                     ? Colors.accentSoft
                     : rising
-                      ? "rgba(139, 92, 246, 0.55)"
-                      : "rgba(248, 113, 113, 0.45)",
+                      ? "rgba(91, 75, 212, 0.55)"
+                      : "rgba(179, 56, 43, 0.42)",
                 },
               ]}
             />

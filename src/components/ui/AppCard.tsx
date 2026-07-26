@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
+import { Colors } from "@/constants/colors";
 
 type AppCardProps = {
   children: ReactNode;
@@ -12,10 +13,10 @@ export function AppCard({ children, style }: AppCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: Colors.card,
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: Colors.cardBorder,
   },
 });

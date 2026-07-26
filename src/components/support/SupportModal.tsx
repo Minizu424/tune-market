@@ -131,10 +131,10 @@ export function SupportModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(27, 26, 24, 0.35)",
   },
   sheet: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   presetTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
   },
   input: {
     backgroundColor: Colors.input,

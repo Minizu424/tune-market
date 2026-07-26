@@ -128,6 +128,12 @@ export default function ArtistDashboardScreen() {
                 <Text style={styles.songActionText}>編集</Text>
               </Pressable>
               <Pressable
+                style={styles.songAction}
+                onPress={() => router.push(`/artist/songs/${song.id}/poll`)}
+              >
+                <Text style={styles.songActionText}>株主投票</Text>
+              </Pressable>
+              <Pressable
                 style={[styles.songAction, styles.songActionPrimary]}
                 onPress={() => router.push(`/artist/songs/${song.id}/progress`)}
               >
@@ -159,8 +165,8 @@ function StatTile({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   heroCard: {
     marginBottom: 14,
-    backgroundColor: "#1E1B4B",
-    borderColor: "#4C1D95",
+    backgroundColor: "#EEEDFE",
+    borderColor: "#CECBF6",
   },
   heroLabel: {
     color: Colors.accentSoft,
@@ -264,7 +270,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   songActionTextPrimary: {
-    color: Colors.text,
+    color: Colors.onAccent,
     fontSize: 12,
     fontWeight: "700",
   },

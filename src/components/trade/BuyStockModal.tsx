@@ -35,6 +35,7 @@ export function BuyStockModal({
   const [amountText, setAmountText] = useState("50");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [priceMove, setPriceMove] = useState<string | null>(null);
 
   const amount = Number(amountText);
   const isValid = Number.isFinite(amount) && amount > 0;
@@ -52,14 +53,20 @@ export function BuyStockModal({
 
     setSubmitting(true);
     setMessage(null);
+    setPriceMove(null);
     try {
       const result = await buySongStock({
         userId,
         songId: song.id,
         pointAmount: amount,
       });
+      const changeRate =
+        ((result.newPrice - result.beforePrice) / result.beforePrice) * 100;
       setMessage(
         `${formatPoint(amount)}pt分（${result.quantity}株）を購入しました。`,
+      );
+      setPriceMove(
+        `株価 ${formatPoint(result.beforePrice)}pt → ${formatPoint(result.newPrice)}pt（+${changeRate.toFixed(1)}%）`,
       );
       onCompleted();
     } catch (error) {
@@ -117,6 +124,7 @@ export function BuyStockModal({
         )}
 
         {message && <Text style={styles.message}>{message}</Text>}
+        {priceMove && <Text style={styles.priceMove}>{priceMove}</Text>}
 
         <AppButton
           title={submitting ? "処理中..." : "購入する"}
@@ -137,10 +145,10 @@ export function BuyStockModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(27, 26, 24, 0.35)",
   },
   sheet: {
-    backgroundColor: "#0F172A",
+    backgroundColor: Colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -188,7 +196,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   presetTextActive: {
-    color: Colors.text,
+    color: Colors.onAccent,
   },
   input: {
     backgroundColor: Colors.input,
@@ -207,6 +215,12 @@ const styles = StyleSheet.create({
   message: {
     color: Colors.accentSoft,
     fontSize: 13,
+    marginBottom: 8,
+  },
+  priceMove: {
+    color: Colors.up,
+    fontSize: 15,
+    fontWeight: "800",
     marginBottom: 8,
   },
   button: {

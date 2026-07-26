@@ -79,13 +79,14 @@ const styles = StyleSheet.create({
   },
   value: {
     color: Colors.text,
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: "800",
+    letterSpacing: -0.4,
     marginBottom: 3,
   },
   profit: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "800",
   },
   detailRow: {
     flexDirection: "row",
